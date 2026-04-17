@@ -6,8 +6,6 @@ import {
   db, 
   googleProvider, 
   signInWithPopup, 
-  signInWithRedirect,
-  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -568,24 +566,42 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
       if (!dataUrl) throw new Error('No se pudo generar la imagen');
 
       let shared = false;
-      try {
-        const base64Content = dataUrl.split(',')[1];
-        const fileName = `ticket-${Date.now()}.png`;
-        const savedFile = await Filesystem.writeFile({
-          path: fileName,
-          data: base64Content,
-          directory: Directory.Cache
-        });
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const base64Content = dataUrl.split(',')[1];
+          const fileName = `ticket-${Date.now()}.png`;
+          await Filesystem.writeFile({
+            path: fileName,
+            data: base64Content,
+            directory: Directory.Cache
+          });
 
-        await Share.share({
-          title: 'Ticket de Juego',
-          text: shareTicketText,
-          files: [savedFile.uri],
-          dialogTitle: 'Compartir Ticket'
-        });
-        shared = true;
-      } catch (capErr) {
-        console.log('Capacitor share failed or not available, falling back to web', capErr);
+          const fileUriResult = await Filesystem.getUri({
+            directory: Directory.Cache,
+            path: fileName
+          });
+          const fileUri = fileUriResult.uri;
+
+          // Prioritize attaching image file first; some targets drop files when text is included.
+          try {
+            await Share.share({
+              title: 'Ticket de Juego',
+              files: [fileUri],
+              dialogTitle: 'Compartir Ticket'
+            });
+            shared = true;
+          } catch {
+            await Share.share({
+              title: 'Ticket de Juego',
+              text: shareTicketText,
+              files: [fileUri],
+              dialogTitle: 'Compartir Ticket'
+            });
+            shared = true;
+          }
+        } catch (capErr) {
+          console.log('Native share failed, trying web fallback', capErr);
+        }
       }
 
       if (!shared) {
@@ -597,11 +613,18 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
             await navigator.share({
               title: 'Ticket de Juego',
-              text: shareTicketText,
               files: [file]
             });
+            shared = true;
           } else {
-            throw new Error('Web Share not supported');
+            // Do not fallback to text-only share when image files are unsupported.
+            // Download the PNG so user can attach it manually and avoid misleading behavior.
+            const link = document.createElement('a');
+            link.download = `ticket-${ticket.id.slice(0, 8)}.png`;
+            link.href = dataUrl;
+            link.click();
+            toast.info('Tu navegador móvil no permite adjuntar imagen al compartir. Se descargó el ticket para enviarlo manualmente.');
+            shared = true;
           }
         } catch (webErr) {
           if (webErr instanceof Error && (webErr.name === 'AbortError' || webErr.message === 'Share canceled')) {
@@ -1132,19 +1155,33 @@ const Login = () => {
       
       console.log("Attempting auth with email:", email);
       
-      // Store login timestamp for daily session requirement (reset at 3 AM)
-      // We set it BEFORE signing in so onAuthStateChanged (which triggers immediately)
-      // sees a valid session and doesn't sign the user out.
-      localStorage.setItem('lastLoginTimestamp', Date.now().toString());
-      
       console.log("Calling signInWithEmailAndPassword...");
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const signedInEmail = (userCredential.user.email || email).toLowerCase();
+
+      // Validate active/inactive only on explicit credential login.
+      if (signedInEmail !== ceoEmail.toLowerCase()) {
+        const userDoc = await getDoc(doc(db, 'users', signedInEmail));
+        if (!userDoc.exists()) {
+          await signOut(auth);
+          localStorage.removeItem('sessionBusinessDay');
+          toast.error('Tu usuario no existe en la base de datos.');
+          return;
+        }
+
+        const profile = userDoc.data() as UserProfile;
+        if ((profile.status || 'active') !== 'active') {
+          await signOut(auth);
+          localStorage.removeItem('sessionBusinessDay');
+          toast.error('Tu usuario está inactivo. Contacta al administrador.');
+          return;
+        }
+      }
       console.log("User signed in successfully:", userCredential.user.uid);
+      localStorage.setItem('sessionBusinessDay', format(getBusinessDate(), 'yyyy-MM-dd'));
       
       toast.success('Sesión iniciada', { id: toastId });
     } catch (error: any) {
-      // If auth fails, we can leave the timestamp, it won't affect anything
-      // since the user isn't logged in anyway.
       console.error("Auth failed error details:", error);
       let errorMessage = "Credenciales incorrectas";
       
@@ -2868,23 +2905,14 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null | undefined>(undefined);
 
+  const getCurrentOperationalSessionDay = () => format(getBusinessDate(), 'yyyy-MM-dd');
+  const getStoredSessionDay = () => localStorage.getItem('sessionBusinessDay');
+  const markSessionDay = () => localStorage.setItem('sessionBusinessDay', getCurrentOperationalSessionDay());
+  const clearSessionDay = () => localStorage.removeItem('sessionBusinessDay');
   const isSessionValid = () => {
-    const lastLogin = localStorage.getItem('lastLoginTimestamp');
-    if (!lastLogin) return false;
-    
-    const lastLoginTime = parseInt(lastLogin);
-    const now = new Date();
-    
-    // Most recent 1 AM
-    const resetTime = new Date(now);
-    resetTime.setHours(1, 0, 0, 0);
-    
-    // If it's before 1 AM now, the reset was yesterday at 1 AM
-    if (now.getHours() < 1) {
-      resetTime.setDate(resetTime.getDate() - 1);
-    }
-    
-    return lastLoginTime > resetTime.getTime();
+    const storedDay = getStoredSessionDay();
+    if (!storedDay) return true;
+    return storedDay === getCurrentOperationalSessionDay();
   };
 
   const [tick, setTick] = useState(0);
@@ -2901,7 +2929,7 @@ function App() {
 
   const handleLogout = () => {
     signOut(auth);
-    localStorage.removeItem('lastLoginTimestamp');
+    clearSessionDay();
   };
 
   const [tickets, setTickets] = useState<LotteryTicket[]>([]);
@@ -3003,16 +3031,49 @@ function App() {
   const [injectionDefaultType, setInjectionDefaultType] = useState<'injection' | 'payment' | 'debt'>('injection');
   const [injectionInitialAmount, setInjectionInitialAmount] = useState<string>('');
   const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [historyInjections, setHistoryInjections] = useState<Injection[]>([]);
+  const [historySettlements, setHistorySettlements] = useState<Settlement[]>([]);
+  const [historyResults, setHistoryResults] = useState<LotteryResult[]>([]);
+  const [liquidationTicketsSnapshot, setLiquidationTicketsSnapshot] = useState<LotteryTicket[]>([]);
+  const [liquidationInjectionsSnapshot, setLiquidationInjectionsSnapshot] = useState<Injection[]>([]);
+  const [liquidationResultsSnapshot, setLiquidationResultsSnapshot] = useState<LotteryResult[]>([]);
+  const [isLiquidationDataLoading, setIsLiquidationDataLoading] = useState(false);
   const [selectedUserToLiquidate, setSelectedUserToLiquidate] = useState<string>('');
   const [selectedManageUserEmail, setSelectedManageUserEmail] = useState<string>('');
   const [liquidationDate, setLiquidationDate] = useState<string>(format(getBusinessDate(), 'yyyy-MM-dd'));
   const [amountPaid, setAmountPaid] = useState<string>('');
   const [isGeneratingYesterdayReport, setIsGeneratingYesterdayReport] = useState(false);
+  const [consolidatedMode, setConsolidatedMode] = useState<'day' | 'range'>('day');
   const [consolidatedReportDate, setConsolidatedReportDate] = useState<string>(() => {
     const d = getBusinessDate();
     d.setDate(d.getDate() - 1);
     return format(d, 'yyyy-MM-dd');
   });
+  const [consolidatedStartDate, setConsolidatedStartDate] = useState<string>(() => {
+    const d = getBusinessDate();
+    d.setDate(d.getDate() - 1);
+    return format(d, 'yyyy-MM-dd');
+  });
+  const [consolidatedEndDate, setConsolidatedEndDate] = useState<string>(() => {
+    const d = getBusinessDate();
+    d.setDate(d.getDate() - 1);
+    return format(d, 'yyyy-MM-dd');
+  });
+  const primaryCeoEmail = (import.meta.env.VITE_CEO_EMAIL || 'zsayeth09@gmail.com').toLowerCase();
+  const isPrimaryCeoUser = (userProfile?.email || '').toLowerCase() === primaryCeoEmail;
+  const historyDataCacheRef = useRef<Map<string, {
+    tickets: LotteryTicket[];
+    injections: Injection[];
+    settlements: Settlement[];
+    results: LotteryResult[];
+  }>>(new Map());
+  const closedLotteryCardsCacheRef = useRef<Map<string, {
+    sales: number;
+    commissions: number;
+    prizes: number;
+    netProfit: number;
+    sortedTicketsForLot: Array<{ t: LotteryTicket; prize: number }>;
+  }>>(new Map());
 
   useEffect(() => {
     if (userProfile && userProfile.role === 'seller' && user?.email) {
@@ -3035,6 +3096,14 @@ function App() {
     setArchiveInjections([]);
     setInjections([]);
     setSettlements([]);
+    setHistoryInjections([]);
+    setHistorySettlements([]);
+    setHistoryResults([]);
+    setLiquidationTicketsSnapshot([]);
+    setLiquidationInjectionsSnapshot([]);
+    setLiquidationResultsSnapshot([]);
+    historyDataCacheRef.current.clear();
+    closedLotteryCardsCacheRef.current.clear();
 
     if (historyDate === previousBusinessDay) setHistoryDate(businessDayKey);
     if (archiveDate === previousBusinessDay) setArchiveDate(businessDayKey);
@@ -3059,7 +3128,7 @@ function App() {
     const resetTimeout = () => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        signOut(auth);
+        handleLogout();
         toast.error('Sesión cerrada por inactividad');
       }, timeoutMs);
     };
@@ -3271,30 +3340,23 @@ function App() {
   };
 
   useEffect(() => {
-    async function handleRedirect() {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result) {
-          console.log("Redirect login success", result.user);
-          toast.success("Sesión iniciada con éxito");
-        }
-      } catch (error: any) {
-        console.error("Redirect login failed", error);
-        if (error.code !== 'auth/no-current-user') {
-          toast.error("Error al procesar el inicio de sesión");
-        }
-      }
-    }
-    handleRedirect();
-
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setLoading(true);
-      if (u && !isSessionValid()) {
-        console.log("Session stale (before 1 AM reset). Signing out.");
-        handleLogout();
-        setUser(u); // Keep user for logout logic if needed
-        setLoading(false);
-        return;
+      if (u) {
+        const storedSessionDay = getStoredSessionDay();
+        const currentSessionDay = getCurrentOperationalSessionDay();
+
+        if (!storedSessionDay) {
+          markSessionDay();
+        } else if (storedSessionDay !== currentSessionDay) {
+          console.log('Session expired by operational day change. Signing out.');
+          handleLogout();
+          setUser(null);
+          setUserProfile(null);
+          setLoading(false);
+          toast.info('Debe iniciar sesión nuevamente por cambio de día operativo.');
+          return;
+        }
       }
 
       setUser(u);
@@ -3358,20 +3420,66 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Check session validity periodically (every minute) to handle 1 AM reset while app is open
+  // Check session validity periodically to enforce one login per operational day.
   useEffect(() => {
     if (!user) return;
     
     const interval = setInterval(() => {
       if (!isSessionValid()) {
-        console.log("Session expired at 1 AM. Signing out.");
+        console.log('Session expired by operational day change. Signing out.');
         handleLogout();
-        toast.info('Su sesión ha expirado por el cambio de día (1 AM). Por favor, inicie sesión de nuevo.');
+        toast.info('Su sesión expiró por cambio de día operativo. Inicie sesión nuevamente.');
       }
     }, 60000); // Check every minute
     
     return () => clearInterval(interval);
   }, [user]);
+
+  const getBusinessDayRange = useCallback((day: string) => {
+    const start = new Date(`${day}T03:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start, end };
+  }, []);
+
+  const getTicketDateKey = useCallback((ticket: LotteryTicket) => {
+    if (ticket.timestamp?.toDate) return format(ticket.timestamp.toDate(), 'yyyy-MM-dd');
+    if (ticket.timestamp?.seconds) return format(new Date(ticket.timestamp.seconds * 1000), 'yyyy-MM-dd');
+    const parsed = new Date(ticket.timestamp ?? Date.now());
+    return isNaN(parsed.getTime()) ? businessDayKey : format(parsed, 'yyyy-MM-dd');
+  }, [businessDayKey]);
+
+  const mergeTicketSnapshots = useCallback((...snapshots: Array<{ docs: Array<{ id: string; data: () => unknown }> } | null>) => {
+    const merged = new Map<string, LotteryTicket>();
+    snapshots.forEach(snapshot => {
+      snapshot?.docs.forEach(ticketDoc => {
+        merged.set(ticketDoc.id, { id: ticketDoc.id, ...(ticketDoc.data() as Omit<LotteryTicket, 'id'>) });
+      });
+    });
+    return Array.from(merged.values()).sort((a, b) => {
+      const aTime = a.timestamp?.toDate?.()?.getTime?.() ?? 0;
+      const bTime = b.timestamp?.toDate?.()?.getTime?.() ?? 0;
+      return bTime - aTime;
+    });
+  }, []);
+
+  const getQuickOperationalDate = useCallback((offset: number) => {
+    const d = getBusinessDate();
+    d.setDate(d.getDate() + offset);
+    return format(d, 'yyyy-MM-dd');
+  }, []);
+
+  const applyOperationalQuickDate = useCallback((setter: (value: string) => void, offset: number) => {
+    setter(getQuickOperationalDate(offset));
+  }, [getQuickOperationalDate]);
+
+  const needsRealtimeOperationalData = useMemo(() => {
+    if (!userProfile?.role) return false;
+    if (activeTab === 'sales' || activeTab === 'dashboard' || activeTab === 'users' || activeTab === 'liquidaciones') return true;
+    if ((activeTab === 'history' || activeTab === 'stats' || activeTab === 'cierres') && historyDate === businessDayKey) return true;
+    if (activeTab === 'archivo' && archiveDate === businessDayKey) return true;
+    return false;
+  }, [activeTab, archiveDate, businessDayKey, historyDate, userProfile?.role]);
 
   // 1. Static/Global Data
   useEffect(() => {
@@ -3449,25 +3557,13 @@ function App() {
   // 2. Today's Real-time Data
   useEffect(() => {
     if (!user?.uid || !userProfile?.role) return;
+    if (!needsRealtimeOperationalData) return;
 
     // Calculate start of current business day (3 AM)
     const startOfToday = getStartOfBusinessDay();
 
     // Fetch TODAY'S tickets for active dashboard
     console.log("Fetching today's tickets for user:", user.uid);
-    const mergeTicketDocs = (...snapshots: Array<{ docs: Array<{ id: string; data: () => unknown }> } | null>) => {
-      const merged = new Map<string, LotteryTicket>();
-      snapshots.forEach(snapshot => {
-        snapshot?.docs.forEach(ticketDoc => {
-          merged.set(ticketDoc.id, { id: ticketDoc.id, ...(ticketDoc.data() as Omit<LotteryTicket, 'id'>) });
-        });
-      });
-      return Array.from(merged.values()).sort((a, b) => {
-        const aTime = a.timestamp?.toDate?.()?.getTime?.() ?? 0;
-        const bTime = b.timestamp?.toDate?.()?.getTime?.() ?? 0;
-        return bTime - aTime;
-      });
-    };
 
     if (canAccessAllUsers) {
       const qToday = query(
@@ -3478,7 +3574,7 @@ function App() {
 
       const unsubscribeTickets = onSnapshot(qToday, (snapshot) => {
         console.log("Today's tickets fetched successfully:", snapshot.size);
-        setTickets(mergeTicketDocs(snapshot));
+        setTickets(mergeTicketSnapshots(snapshot));
       }, (error) => {
         console.error("Error fetching today's tickets:", error);
         handleFirestoreError(error, OperationType.GET, 'tickets_today');
@@ -3509,7 +3605,8 @@ function App() {
       console.log("Fetching settlements for user:", user?.email?.toLowerCase());
       const qSettlements = query(
         collection(db, 'settlements'),
-        limit(200)
+        orderBy('timestamp', 'desc'),
+        limit(120)
       );
       const unsubscribeSettlements = onSnapshot(qSettlements, (snapshot) => {
         console.log("Settlements fetched successfully:", snapshot.size);
@@ -3547,7 +3644,7 @@ function App() {
     let sellerIdSnapshot: { docs: Array<{ id: string; data: () => unknown }> } | null = null;
     let sellerEmailSnapshot: { docs: Array<{ id: string; data: () => unknown }> } | null = null;
     const publishSellerTickets = () => {
-      const merged = mergeTicketDocs(sellerIdSnapshot, sellerEmailSnapshot);
+      const merged = mergeTicketSnapshots(sellerIdSnapshot, sellerEmailSnapshot);
       console.log("Today's seller tickets fetched successfully:", merged.length);
       setTickets(merged);
     };
@@ -3575,6 +3672,7 @@ function App() {
     const qInj = query(
       collection(db, 'injections'),
       where('userEmail', '==', user?.email?.toLowerCase()),
+      where('date', '==', businessDayKey),
       limit(50)
     );
     const unsubscribeInjections = onSnapshot(qInj, (snapshot) => {
@@ -3618,94 +3716,179 @@ function App() {
       unsubscribeResults();
       unsubscribeSettlements();
     };
-  }, [businessDayKey, canAccessAllUsers, user?.uid, user?.email, userProfile?.role, userProfile?.canLiquidate]);
+  }, [businessDayKey, canAccessAllUsers, mergeTicketSnapshots, needsRealtimeOperationalData, user?.uid, user?.email, userProfile?.role, userProfile?.canLiquidate]);
 
   // 3. History Data (Conditional on Date)
   useEffect(() => {
     if (!user?.uid || !userProfile?.role || (activeTab !== 'history' && activeTab !== 'stats' && activeTab !== 'cierres')) return;
+    let cancelled = false;
 
-    // Fetch HISTORY tickets based on selected date
-    const d = new Date(historyDate + 'T03:00:00');
-    const startOfHistory = !isNaN(d.getTime()) ? d : new Date();
-    const endOfHistory = new Date(startOfHistory);
-    endOfHistory.setDate(endOfHistory.getDate() + 1);
+    const loadHistoricalData = async () => {
+      const { start, end } = getBusinessDayRange(historyDate);
+      const sellerEmail = user.email?.toLowerCase();
+      const scopeKey = canAccessAllUsers ? 'global' : `seller:${sellerEmail || user.uid}`;
+      const cacheKey = `${historyDate}|${scopeKey}`;
+      const cachedData = historyDataCacheRef.current.get(cacheKey);
 
-    const mergeHistoryDocs = (...snapshots: Array<{ docs: Array<{ id: string; data: () => unknown }> } | null>) => {
-      const merged = new Map<string, LotteryTicket>();
-      snapshots.forEach(snapshot => {
-        snapshot?.docs.forEach(ticketDoc => {
-          merged.set(ticketDoc.id, { id: ticketDoc.id, ...(ticketDoc.data() as Omit<LotteryTicket, 'id'>) });
-        });
-      });
-      return Array.from(merged.values()).sort((a, b) => {
-        const aTime = a.timestamp?.toDate?.()?.getTime?.() ?? 0;
-        const bTime = b.timestamp?.toDate?.()?.getTime?.() ?? 0;
-        return bTime - aTime;
-      });
-    };
+      if (cachedData && historyDate !== businessDayKey) {
+        if (!cancelled) {
+          setHistoryTickets(cachedData.tickets);
+          setHistoryInjections(cachedData.injections);
+          setHistorySettlements(cachedData.settlements);
+          setHistoryResults(cachedData.results);
+          setResults(prev => {
+            const map = new Map(prev.map(item => [`${item.lotteryName}-${item.date}-${item.id}`, item]));
+            cachedData.results.forEach(item => map.set(`${item.lotteryName}-${item.date}-${item.id}`, item));
+            return Array.from(map.values());
+          });
+        }
+        return;
+      }
 
-    if (canAccessAllUsers) {
-      const qHistory = query(
-        collection(db, 'tickets'),
-        where('timestamp', '>=', startOfHistory),
-        where('timestamp', '<', endOfHistory),
-        limit(2000)
-      );
+      try {
+        if (historyDate === businessDayKey) {
+          if (!cancelled) {
+            setHistoryTickets(tickets);
+            setHistoryInjections(injections.filter(i => i.date === historyDate));
+            setHistorySettlements(settlements.filter(s => s.date === historyDate));
+            setHistoryResults(results.filter(r => r.date === historyDate));
+          }
+          return;
+        }
 
-      const unsubscribeHistory = onSnapshot(qHistory, (snapshot) => {
-        setHistoryTickets(mergeHistoryDocs(snapshot));
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'tickets_history');
-      });
+        if (canAccessAllUsers) {
+          const [ticketSnap, injectionSnap, settlementSnap, resultSnap] = await Promise.all([
+            getDocs(query(
+              collection(db, 'tickets'),
+              where('timestamp', '>=', start),
+              where('timestamp', '<', end),
+              limit(2500)
+            )),
+            getDocs(query(
+              collection(db, 'injections'),
+              where('date', '==', historyDate),
+              limit(1500)
+            )),
+            getDocs(query(
+              collection(db, 'settlements'),
+              where('date', '==', historyDate),
+              limit(1000)
+            )),
+            getDocs(query(
+              collection(db, 'results'),
+              where('date', '==', historyDate),
+              limit(300)
+            ))
+          ]);
 
-      return () => unsubscribeHistory();
-    }
+          if (!cancelled) {
+            const loadedTickets = mergeTicketSnapshots(ticketSnap);
+            const loadedInjections = injectionSnap.docs.map(d => ({ id: d.id, ...d.data() } as Injection));
+            const loadedSettlements = settlementSnap.docs.map(d => ({ id: d.id, ...d.data() } as Settlement));
+            const loadedResults = resultSnap.docs.map(d => ({ id: d.id, ...d.data() } as LotteryResult));
+            setHistoryTickets(loadedTickets);
+            setHistoryInjections(loadedInjections);
+            setHistorySettlements(loadedSettlements);
+            setHistoryResults(loadedResults);
+            historyDataCacheRef.current.set(cacheKey, {
+              tickets: loadedTickets,
+              injections: loadedInjections,
+              settlements: loadedSettlements,
+              results: loadedResults
+            });
+            setResults(prev => {
+              const map = new Map(prev.map(item => [`${item.lotteryName}-${item.date}-${item.id}`, item]));
+              loadedResults.forEach(item => map.set(`${item.lotteryName}-${item.date}-${item.id}`, item));
+              return Array.from(map.values());
+            });
+          }
+          return;
+        }
 
-    const sellerEmail = user.email?.toLowerCase();
-    const qHistoryBySellerId = query(
-      collection(db, 'tickets'),
-      where('sellerId', '==', user.uid),
-      where('timestamp', '>=', startOfHistory),
-      where('timestamp', '<', endOfHistory),
-      limit(200)
-    );
-    const qHistoryBySellerEmail = sellerEmail
-      ? query(
+        const historyBySellerIdQ = query(
           collection(db, 'tickets'),
-          where('sellerEmail', '==', sellerEmail),
-          where('timestamp', '>=', startOfHistory),
-          where('timestamp', '<', endOfHistory),
-          limit(200)
-        )
-      : null;
+          where('sellerId', '==', user.uid),
+          where('timestamp', '>=', start),
+          where('timestamp', '<', end),
+          limit(600)
+        );
+        const historyBySellerEmailQ = sellerEmail
+          ? query(
+              collection(db, 'tickets'),
+              where('sellerEmail', '==', sellerEmail),
+              where('timestamp', '>=', start),
+              where('timestamp', '<', end),
+              limit(600)
+            )
+          : null;
 
-    let historySellerIdSnapshot: { docs: Array<{ id: string; data: () => unknown }> } | null = null;
-    let historySellerEmailSnapshot: { docs: Array<{ id: string; data: () => unknown }> } | null = null;
-    const publishHistoryTickets = () => {
-      setHistoryTickets(mergeHistoryDocs(historySellerIdSnapshot, historySellerEmailSnapshot));
+        const [historyByIdSnap, historyByEmailSnap, injectionSnap, settlementSnap, resultSnap] = await Promise.all([
+          getDocs(historyBySellerIdQ),
+          historyBySellerEmailQ ? getDocs(historyBySellerEmailQ) : Promise.resolve(null),
+          sellerEmail ? getDocs(query(
+            collection(db, 'injections'),
+            where('userEmail', '==', sellerEmail),
+            where('date', '==', historyDate),
+            limit(500)
+          )) : Promise.resolve(null),
+          sellerEmail ? getDocs(query(
+            collection(db, 'settlements'),
+            where('userEmail', '==', sellerEmail),
+            where('date', '==', historyDate),
+            limit(300)
+          )) : Promise.resolve(null),
+          getDocs(query(
+            collection(db, 'results'),
+            where('date', '==', historyDate),
+            limit(300)
+          ))
+        ]);
+
+        if (!cancelled) {
+          const loadedTickets = mergeTicketSnapshots(historyByIdSnap, historyByEmailSnap);
+          const loadedInjections = injectionSnap ? injectionSnap.docs.map(d => ({ id: d.id, ...d.data() } as Injection)) : [];
+          const loadedSettlements = settlementSnap ? settlementSnap.docs.map(d => ({ id: d.id, ...d.data() } as Settlement)) : [];
+          const loadedResults = resultSnap.docs.map(d => ({ id: d.id, ...d.data() } as LotteryResult));
+          setHistoryTickets(loadedTickets);
+          setHistoryInjections(loadedInjections);
+          setHistorySettlements(loadedSettlements);
+          setHistoryResults(loadedResults);
+          historyDataCacheRef.current.set(cacheKey, {
+            tickets: loadedTickets,
+            injections: loadedInjections,
+            settlements: loadedSettlements,
+            results: loadedResults
+          });
+          setResults(prev => {
+            const map = new Map(prev.map(item => [`${item.lotteryName}-${item.date}-${item.id}`, item]));
+            loadedResults.forEach(item => map.set(`${item.lotteryName}-${item.date}-${item.id}`, item));
+            return Array.from(map.values());
+          });
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, 'historical_data');
+      }
     };
 
-    const unsubscribeHistoryById = onSnapshot(qHistoryBySellerId, (snapshot) => {
-      historySellerIdSnapshot = snapshot;
-      publishHistoryTickets();
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'tickets_history_by_sellerId');
-    });
-
-    const unsubscribeHistoryByEmail = qHistoryBySellerEmail
-      ? onSnapshot(qHistoryBySellerEmail, (snapshot) => {
-          historySellerEmailSnapshot = snapshot;
-          publishHistoryTickets();
-        }, (error) => {
-          handleFirestoreError(error, OperationType.GET, 'tickets_history_by_sellerEmail');
-        })
-      : () => {};
+    void loadHistoricalData();
 
     return () => {
-      unsubscribeHistoryById();
-      unsubscribeHistoryByEmail();
+      cancelled = true;
     };
-  }, [activeTab, canAccessAllUsers, historyDate, user?.uid, userProfile?.role]);
+  }, [
+    activeTab,
+    businessDayKey,
+    canAccessAllUsers,
+    getBusinessDayRange,
+    historyDate,
+    injections,
+    mergeTicketSnapshots,
+    settlements,
+    tickets,
+    user?.uid,
+    user?.email,
+    userProfile?.role
+  ]);
 
   useEffect(() => {
     if (!globalSettings.chancePrices || globalSettings.chancePrices.length === 0) return;
@@ -4133,19 +4316,24 @@ function App() {
     });
   };
 
-  const getTicketPrizes = useCallback((ticket: LotteryTicket, filterLottery?: string, typeFilter?: string) => {
+  const getTicketPrizesFromSource = useCallback((
+    ticket: LotteryTicket,
+    resultsSource: LotteryResult[],
+    filterLottery?: string,
+    typeFilter?: string
+  ) => {
     let totalPrize = 0;
     const winningBets: { idx: number, prize: number, rank: number, lotteryName: string, winningNumber: string, matchType?: string }[] = [];
 
     if (ticket.status === 'cancelled') return { totalPrize, winningBets };
 
-    const ticketDate = ticket.timestamp?.toDate ? format(ticket.timestamp.toDate(), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+    const ticketDate = getTicketDateKey(ticket);
 
     (ticket.bets || []).forEach((bet, idx) => {
       if (filterLottery && cleanText(bet.lottery) !== cleanText(filterLottery)) return;
       if (typeFilter && bet.type !== typeFilter) return;
 
-      const result = results.find(r => cleanText(r.lotteryName) === cleanText(bet.lottery) && r.date === ticketDate);
+      const result = resultsSource.find(r => cleanText(r.lotteryName) === cleanText(bet.lottery) && r.date === ticketDate);
       if (!result) return;
 
       const last2 = bet.number.slice(-2);
@@ -4261,7 +4449,70 @@ function App() {
     });
 
     return { totalPrize, winningBets };
-  }, [tickets, historyTickets, userProfile]);
+  }, [getTicketDateKey, globalSettings.billeteMultipliers, globalSettings.billetesEnabled, globalSettings.chancePrices, globalSettings.palesEnabled, globalSettings.pl12Multiplier, globalSettings.pl13Multiplier, globalSettings.pl23Multiplier]);
+
+  const getTicketPrizes = useCallback((ticket: LotteryTicket, filterLottery?: string, typeFilter?: string) => {
+    return getTicketPrizesFromSource(ticket, results, filterLottery, typeFilter);
+  }, [getTicketPrizesFromSource, results]);
+
+  const buildFinancialSummary = useCallback((params: {
+    tickets: LotteryTicket[];
+    injections: Injection[];
+    settlements?: Settlement[];
+    userEmail?: string;
+    targetDate?: string;
+    prizeResolver?: (ticket: LotteryTicket) => { totalPrize: number };
+  }) => {
+    const {
+      tickets: sourceTickets,
+      injections: sourceInjections,
+      settlements: sourceSettlements = [],
+      userEmail,
+      targetDate,
+      prizeResolver = (ticket: LotteryTicket) => getTicketPrizes(ticket)
+    } = params;
+
+    const normalizedEmail = userEmail?.toLowerCase();
+    const matchesUser = (email?: string) => !normalizedEmail || (email || '').toLowerCase() === normalizedEmail;
+
+    const validTickets = sourceTickets.filter(ticket => {
+      if (ticket.status === 'cancelled') return false;
+      if (!matchesUser(ticket.sellerEmail)) return false;
+      if (!targetDate) return true;
+      return getTicketDateKey(ticket) === targetDate;
+    });
+
+    const validInjections = sourceInjections.filter(injection => {
+      if (!matchesUser(injection.userEmail)) return false;
+      if (targetDate && injection.date !== targetDate) return false;
+      return (injection.type || 'injection') === 'injection';
+    });
+
+    const validSettlements = sourceSettlements.filter(settlement => {
+      if (!matchesUser(settlement.userEmail)) return false;
+      if (targetDate && settlement.date !== targetDate) return false;
+      return true;
+    });
+
+    const totalSales = validTickets.reduce((sum, ticket) => sum + (ticket.totalAmount || 0), 0);
+    const totalCommissions = validTickets.reduce((sum, ticket) => sum + ((ticket.totalAmount || 0) * ((ticket.commissionRate || 0) / 100)), 0);
+    const totalPrizes = validTickets.reduce((sum, ticket) => sum + (prizeResolver(ticket).totalPrize || 0), 0);
+    const totalInjections = validInjections.reduce((sum, injection) => sum + (injection.amount || 0), 0);
+    const totalLiquidations = validSettlements.reduce((sum, settlement) => sum + (settlement.amountPaid || 0), 0);
+    const netProfit = totalSales - totalCommissions - totalPrizes + totalInjections;
+
+    return {
+      tickets: validTickets,
+      injections: validInjections,
+      settlements: validSettlements,
+      totalSales,
+      totalCommissions,
+      totalPrizes,
+      totalInjections,
+      totalLiquidations,
+      netProfit
+    };
+  }, [getTicketDateKey, getTicketPrizes]);
 
   const getLotteryDayStats = useCallback((lotteryName: string, date: string, typeFilter?: string) => {
     const todayStr = businessDayKey;
@@ -4891,24 +5142,33 @@ function App() {
 
   const handleLiquidate = async () => {
     if (!selectedUserToLiquidate) return;
+    if (liquidationDate !== businessDayKey && isLiquidationDataLoading) {
+      toast.error('Espera a que termine la carga de datos históricos');
+      return;
+    }
     
     const userToLiquidate = users.find(u => u.email === selectedUserToLiquidate);
     if (!userToLiquidate) return;
 
-    const unliquidatedTickets = tickets.filter(t => {
-      const tDate = t.timestamp?.toDate ? format(t.timestamp.toDate(), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-      return t.sellerEmail === selectedUserToLiquidate && !t.liquidated && tDate === liquidationDate;
+    const isCurrentOperationalDate = liquidationDate === businessDayKey;
+    const liquidationTicketsSource = isCurrentOperationalDate ? tickets : liquidationTicketsSnapshot;
+    const liquidationInjectionsSource = isCurrentOperationalDate ? injections : liquidationInjectionsSnapshot;
+    const liquidationResultsSource = isCurrentOperationalDate ? results : liquidationResultsSnapshot;
+    const prizeResolver = (ticket: LotteryTicket) => getTicketPrizesFromSource(ticket, liquidationResultsSource);
+
+    const financialSummary = buildFinancialSummary({
+      tickets: liquidationTicketsSource,
+      injections: liquidationInjectionsSource,
+      userEmail: selectedUserToLiquidate,
+      targetDate: liquidationDate,
+      prizeResolver
     });
-    const unliquidatedInjections = injections.filter(i => 
-      i.userEmail === selectedUserToLiquidate && 
-      !i.liquidated && 
-      i.date === liquidationDate &&
-      (i.type === 'injection' || !i.type)
-    );
+    const unliquidatedTickets = financialSummary.tickets.filter(t => !t.liquidated);
+    const unliquidatedInjections = financialSummary.injections.filter(i => !i.liquidated);
 
     const totalSales = unliquidatedTickets.reduce((sum, t) => sum + t.totalAmount, 0);
     const totalCommissions = unliquidatedTickets.reduce((sum, t) => sum + (t.totalAmount * (t.commissionRate / 100)), 0);
-    const totalPrizes = unliquidatedTickets.reduce((sum, t) => sum + getTicketPrizes(t).totalPrize, 0);
+    const totalPrizes = unliquidatedTickets.reduce((sum, t) => sum + prizeResolver(t).totalPrize, 0);
     const totalInjections = unliquidatedInjections.reduce((sum, i) => sum + i.amount, 0);
     
     const netProfit = totalSales - totalCommissions - totalPrizes + totalInjections;
@@ -4985,22 +5245,28 @@ function App() {
   };
 
   const generateConsolidatedReport = async () => {
-    if (!(userProfile?.role === 'ceo' || userProfile?.role === 'admin')) {
-      toast.error('Solo CEO/Admin puede generar este reporte');
+    if (!isPrimaryCeoUser) {
+      toast.error('Solo el CEO propietario puede generar este reporte');
       return;
     }
 
-    if (!consolidatedReportDate) {
-      toast.error('Selecciona una fecha para generar el reporte');
+    const reportStartDate = consolidatedMode === 'day' ? consolidatedReportDate : consolidatedStartDate;
+    const reportEndDate = consolidatedMode === 'day' ? consolidatedReportDate : consolidatedEndDate;
+
+    if (!reportStartDate || !reportEndDate) {
+      toast.error('Selecciona el rango de fechas del consolidado');
       return;
     }
 
-    const reportDate = consolidatedReportDate;
-    const start = new Date(`${reportDate}T03:00:00`);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
+    if (reportStartDate > reportEndDate) {
+      toast.error('La fecha inicial no puede ser mayor que la fecha final');
+      return;
+    }
 
-    const toastId = toast.loading(`Generando PDF consolidado de ${reportDate}...`);
+    const { start } = getBusinessDayRange(reportStartDate);
+    const { end } = getBusinessDayRange(reportEndDate);
+
+    const toastId = toast.loading(`Generando consolidado ${reportStartDate} -> ${reportEndDate}...`);
     setIsGeneratingYesterdayReport(true);
 
     try {
@@ -5013,17 +5279,20 @@ function App() {
         )),
         getDocs(query(
           collection(db, 'injections'),
-          where('date', '==', reportDate),
+          where('date', '>=', reportStartDate),
+          where('date', '<=', reportEndDate),
           limit(3000)
         )),
         getDocs(query(
           collection(db, 'settlements'),
-          where('date', '==', reportDate),
+          where('date', '>=', reportStartDate),
+          where('date', '<=', reportEndDate),
           limit(3000)
         )),
         getDocs(query(
           collection(db, 'results'),
-          where('date', '==', reportDate),
+          where('date', '>=', reportStartDate),
+          where('date', '<=', reportEndDate),
           limit(300)
         ))
       ]);
@@ -5035,117 +5304,11 @@ function App() {
       const reportSettlements = settlementsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Settlement));
       const reportResults = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() } as LotteryResult));
 
-      const getTicketDateSafe = (ticket: LotteryTicket) => {
-        if (ticket.timestamp?.toDate) return format(ticket.timestamp.toDate(), 'yyyy-MM-dd');
-        if (ticket.timestamp?.seconds) return format(new Date(ticket.timestamp.seconds * 1000), 'yyyy-MM-dd');
-        const parsed = new Date(ticket.timestamp ?? Date.now());
-        return isNaN(parsed.getTime()) ? reportDate : format(parsed, 'yyyy-MM-dd');
-      };
-
-      const calculateTicketPrizesForReport = (ticket: LotteryTicket) => {
-        let totalPrize = 0;
-        const winningBets: { idx: number, prize: number, rank: number, lotteryName: string, winningNumber: string, matchType?: string }[] = [];
-        if (ticket.status === 'cancelled') return { totalPrize, winningBets };
-
-        const ticketDate = getTicketDateSafe(ticket);
-        (ticket.bets || []).forEach((bet, idx) => {
-          const result = reportResults.find(r => cleanText(r.lotteryName) === cleanText(bet.lottery) && r.date === ticketDate);
-          if (!result) return;
-
-          const last2 = (bet.number || '').slice(-2);
-          if (bet.type === 'CH') {
-            const quantity = bet.quantity || 1;
-            const pricePerChance = (bet.amount || 0) / quantity;
-            const priceConfig = globalSettings.chancePrices?.find(cp => Math.abs(cp.price - pricePerChance) < 0.001);
-            if (last2 === result.firstPrize.slice(-2)) {
-              const p = (priceConfig ? priceConfig.ch1 : 0) * quantity;
-              totalPrize += p;
-              winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: result.firstPrize });
-            }
-            if (result.secondPrize && last2 === result.secondPrize.slice(-2)) {
-              const p = (priceConfig ? priceConfig.ch2 : 0) * quantity;
-              totalPrize += p;
-              winningBets.push({ idx, prize: p, rank: 2, lotteryName: bet.lottery, winningNumber: result.secondPrize });
-            }
-            if (result.thirdPrize && last2 === result.thirdPrize.slice(-2)) {
-              const p = (priceConfig ? priceConfig.ch3 : 0) * quantity;
-              totalPrize += p;
-              winningBets.push({ idx, prize: p, rank: 3, lotteryName: bet.lottery, winningNumber: result.thirdPrize });
-            }
-          } else if (bet.type === 'PL' && globalSettings.palesEnabled) {
-            const n1 = bet.number.slice(0, 2);
-            const n2 = bet.number.slice(2, 4);
-            const r1 = result.firstPrize.slice(-2);
-            const r2 = result.secondPrize.slice(-2);
-            const r3 = result.thirdPrize.slice(-2);
-            if ((n1 === r1 && n2 === r2) || (n1 === r2 && n2 === r1)) {
-              const p = (bet.amount || 0) * (globalSettings.pl12Multiplier || 1000);
-              totalPrize += p;
-              winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: `${r1}-${r2}`, matchType: 'Pale' });
-            }
-            if ((n1 === r1 && n2 === r3) || (n1 === r3 && n2 === r1)) {
-              const p = (bet.amount || 0) * (globalSettings.pl13Multiplier || 1000);
-              totalPrize += p;
-              winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: `${r1}-${r3}`, matchType: 'Pale' });
-            }
-            if ((n1 === r2 && n2 === r3) || (n1 === r3 && n2 === r2)) {
-              const p = (bet.amount || 0) * (globalSettings.pl23Multiplier || 200);
-              totalPrize += p;
-              winningBets.push({ idx, prize: p, rank: 2, lotteryName: bet.lottery, winningNumber: `${r2}-${r3}`, matchType: 'Pale' });
-            }
-          } else if (bet.type === 'BL' && globalSettings.billetesEnabled) {
-            const defaultPrizes = { full4: 2000, first3: 200, last3: 200, first2: 20, last2: 20 };
-            const multipliers = globalSettings.billeteMultipliers || {
-              p1: { ...defaultPrizes },
-              p2: { ...defaultPrizes },
-              p3: { ...defaultPrizes }
-            };
-            const checkPrize = (winningNum: string, prizeRank: number) => {
-              if (winningNum.length !== 4) return;
-              const pKey = `p${prizeRank}` as keyof typeof multipliers;
-              const prizeMults = multipliers[pKey] || defaultPrizes;
-              const betNum = bet.number;
-              const amount = bet.amount || 0;
-              if (betNum === winningNum) {
-                const p = amount * prizeMults.full4;
-                totalPrize += p;
-                winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '4 Cifras' });
-                return;
-              }
-              if (betNum.slice(0, 3) === winningNum.slice(0, 3)) {
-                const p = amount * prizeMults.first3;
-                totalPrize += p;
-                winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '3 Primeras' });
-              } else if (betNum.slice(0, 2) === winningNum.slice(0, 2)) {
-                const p = amount * prizeMults.first2;
-                totalPrize += p;
-                winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '2 Primeras' });
-              }
-              if (betNum.slice(1, 4) === winningNum.slice(1, 4)) {
-                const p = amount * prizeMults.last3;
-                totalPrize += p;
-                winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '3 Ultimas' });
-              } else if (betNum.slice(2, 4) === winningNum.slice(2, 4)) {
-                const p = amount * prizeMults.last2;
-                totalPrize += p;
-                winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '2 Ultimas' });
-              }
-            };
-            checkPrize(result.firstPrize, 1);
-            checkPrize(result.secondPrize, 2);
-            checkPrize(result.thirdPrize, 3);
-          }
-        });
-        return { totalPrize, winningBets };
-      };
-
       type ReportUserData = {
         email: string;
         name: string;
         sellerId?: string;
-        tickets: LotteryTicket[];
-        injections: Injection[];
-        settlements: Settlement[];
+        summary: ReturnType<typeof buildFinancialSummary>;
       };
       const reportUsersMap = new Map<string, ReportUserData>();
       const findUserProfile = (email: string) => users.find(u => u.email?.toLowerCase() === email.toLowerCase());
@@ -5153,13 +5316,18 @@ function App() {
         const email = (emailRaw || '').toLowerCase().trim() || `sin-correo-${(fallbackSellerId || fallbackName || 'usuario').toLowerCase().replace(/\s+/g, '-')}`;
         if (!reportUsersMap.has(email)) {
           const profile = findUserProfile(email);
+          const summary = buildFinancialSummary({
+            tickets: reportTickets,
+            injections: reportInjections,
+            settlements: reportSettlements,
+            userEmail: email,
+            prizeResolver: (ticket: LotteryTicket) => getTicketPrizesFromSource(ticket, reportResults)
+          });
           reportUsersMap.set(email, {
             email,
             name: profile?.name || fallbackName || email,
             sellerId: profile?.sellerId || fallbackSellerId,
-            tickets: [],
-            injections: [],
-            settlements: []
+            summary
           });
         }
         return reportUsersMap.get(email)!;
@@ -5167,18 +5335,26 @@ function App() {
 
       reportTickets.forEach(ticket => {
         const sellerEmail = ticket.sellerEmail?.toLowerCase() || '';
-        ensureReportUser(sellerEmail, ticket.sellerName, ticket.sellerCode).tickets.push(ticket);
+        ensureReportUser(sellerEmail, ticket.sellerName, ticket.sellerCode);
       });
       reportInjections.forEach(inj => {
         const email = inj.userEmail?.toLowerCase() || '';
-        ensureReportUser(email).injections.push(inj);
+        ensureReportUser(email);
       });
       reportSettlements.forEach(settlement => {
         const email = settlement.userEmail?.toLowerCase() || '';
-        ensureReportUser(email).settlements.push(settlement);
+        ensureReportUser(email);
       });
 
-      const reportUsers = Array.from(reportUsersMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+      const reportUsers = Array.from(reportUsersMap.values())
+        .filter(userData => (
+          userData.summary.totalSales > 0 ||
+          userData.summary.totalPrizes > 0 ||
+          userData.summary.totalInjections > 0 ||
+          userData.summary.totalLiquidations > 0
+        ))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
       const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
       const marginX = 12;
       const maxWidth = 186;
@@ -5208,15 +5384,15 @@ function App() {
         writeLine('==================================================', 'normal', 8);
       };
 
-      const globalSales = reportUsers.reduce((acc, u) => acc + u.tickets.reduce((s, t) => s + (t.totalAmount || 0), 0), 0);
-      const globalPrizes = reportUsers.reduce((acc, u) => acc + u.tickets.reduce((s, t) => s + calculateTicketPrizesForReport(t).totalPrize, 0), 0);
-      const globalInjections = reportUsers.reduce((acc, u) => acc + u.injections.filter(i => !i.type || i.type === 'injection').reduce((s, i) => s + (i.amount || 0), 0), 0);
-      const globalCommissions = reportUsers.reduce((acc, u) => acc + u.tickets.reduce((s, t) => s + ((t.totalAmount || 0) * ((t.commissionRate || 0) / 100)), 0), 0);
-      const globalLiquidations = reportUsers.reduce((acc, u) => acc + u.settlements.reduce((s, set) => s + (set.amountPaid || 0), 0), 0);
+      const globalSales = reportUsers.reduce((acc, u) => acc + u.summary.totalSales, 0);
+      const globalPrizes = reportUsers.reduce((acc, u) => acc + u.summary.totalPrizes, 0);
+      const globalInjections = reportUsers.reduce((acc, u) => acc + u.summary.totalInjections, 0);
+      const globalCommissions = reportUsers.reduce((acc, u) => acc + u.summary.totalCommissions, 0);
+      const globalLiquidations = reportUsers.reduce((acc, u) => acc + u.summary.totalLiquidations, 0);
       const globalNet = globalSales - globalCommissions - globalPrizes + globalInjections;
 
-      writeLine('REPORTE CONSOLIDADO DIARIO', 'bold', 15);
-      writeLine(`Fecha operativa seleccionada: ${reportDate}`, 'bold', 10);
+      writeLine('REPORTE CONSOLIDADO EJECUTIVO', 'bold', 15);
+      writeLine(`Rango operativo: ${reportStartDate} -> ${reportEndDate}`, 'bold', 10);
       writeLine(`Generado: ${format(new Date(), 'dd/MM/yyyy hh:mm a')}`, 'normal', 9);
       separator();
       writeLine('RESUMEN GLOBAL', 'bold', 11);
@@ -5228,7 +5404,7 @@ function App() {
       writeLine(`Neto global estimado: USD ${globalNet.toFixed(2)}`, 'bold', 10);
       separator();
 
-      if (reportUsers.length === 0) writeLine('Sin datos para la fecha seleccionada.', 'bold', 10);
+      if (reportUsers.length === 0) writeLine('Sin datos para el rango seleccionado.', 'bold', 10);
 
       reportUsers.forEach((ru) => {
         ensureSpace(6);
@@ -5237,72 +5413,18 @@ function App() {
         writeLine(`Correo: ${ru.email}`);
         writeLine(`SellerId: ${ru.sellerId || '-'}`);
 
-        const userSales = ru.tickets.reduce((s, t) => s + (t.totalAmount || 0), 0);
-        const userCommissions = ru.tickets.reduce((s, t) => s + ((t.totalAmount || 0) * ((t.commissionRate || 0) / 100)), 0);
-        const ticketPrizeData = ru.tickets.map(t => ({ ticket: t, prize: calculateTicketPrizesForReport(t) }));
-        const userPrizes = ticketPrizeData.reduce((s, item) => s + item.prize.totalPrize, 0);
-        const userInjectionOnly = ru.injections.filter(i => !i.type || i.type === 'injection').reduce((s, i) => s + (i.amount || 0), 0);
-        const userLiquidations = ru.settlements.reduce((s, set) => s + (set.amountPaid || 0), 0);
-        const userNet = userSales - userCommissions - userPrizes + userInjectionOnly;
-
         writeLine('SUBTOTALES POR USUARIO', 'bold', 10);
-        writeLine(`Total ventas: USD ${userSales.toFixed(2)}`);
-        writeLine(`Total premios: USD ${userPrizes.toFixed(2)}`);
-        writeLine(`Total inyecciones: USD ${userInjectionOnly.toFixed(2)}`);
-        writeLine(`Total liquidaciones (monto pagado): USD ${userLiquidations.toFixed(2)}`);
-        writeLine(`Neto estimado/final: USD ${userNet.toFixed(2)}`, 'bold', 10);
-        separator();
-
-        writeLine('DETALLE DE TICKETS', 'bold', 10);
-        if (!ticketPrizeData.length) {
-          writeLine('Sin tickets para este usuario en la fecha seleccionada.');
-        } else {
-          ticketPrizeData.forEach(({ ticket, prize }, idx) => {
-            const ticketTime = ticket.timestamp?.toDate ? format(ticket.timestamp.toDate(), 'hh:mm a') : '--:--';
-            const lotteriesText = Array.from(new Set((ticket.bets || []).map(b => cleanText(b.lottery)))).join(', ') || '-';
-            const winnerTag = prize.totalPrize > 0 ? ' [GANADOR]' : '';
-            writeLine(`${idx + 1}. Ticket ${ticket.id.slice(0, 8)} | ${ticketTime} | ${ticket.status}${winnerTag}`, 'bold', 9);
-            writeLine(`   Loterias: ${lotteriesText}`);
-            writeLine(`   Venta: USD ${(ticket.totalAmount || 0).toFixed(2)} | Premio: USD ${(prize.totalPrize || 0).toFixed(2)}`);
-
-            (ticket.bets || []).forEach((bet, bIdx) => {
-              writeLine(`   - Bet ${bIdx + 1}: ${cleanText(bet.lottery)} | ${bet.type} ${bet.number} | qty ${bet.quantity} | USD ${(bet.amount || 0).toFixed(2)}`);
-            });
-
-            if (prize.winningBets.length) {
-              prize.winningBets.forEach((w, wIdx) => {
-                const hit = `${cleanText(w.lotteryName)} ${w.winningNumber}${w.matchType ? ` (${w.matchType})` : ''}`;
-                writeLine(`   * Acierto ${wIdx + 1}: ${hit} | Premio USD ${(w.prize || 0).toFixed(2)}`);
-              });
-            }
-            separator();
-          });
-        }
-
-        writeLine('INYECCIONES / AJUSTES', 'bold', 10);
-        if (!ru.injections.length) {
-          writeLine('Sin movimientos de inyecciones/ajustes.');
-        } else {
-          ru.injections.forEach((inj, iIdx) => {
-            writeLine(`${iIdx + 1}. Tipo: ${inj.type || 'injection'} | Monto: USD ${(inj.amount || 0).toFixed(2)} | Fecha: ${inj.date || reportDate}`);
-          });
-        }
-        separator();
-
-        writeLine('LIQUIDACIONES', 'bold', 10);
-        if (!ru.settlements.length) {
-          writeLine('Sin liquidaciones registradas para esta fecha.');
-        } else {
-          ru.settlements.forEach((set, sIdx) => {
-            writeLine(`${sIdx + 1}. Ventas USD ${(set.totalSales || 0).toFixed(2)} | Premios USD ${(set.totalPrizes || 0).toFixed(2)} | Inyecciones USD ${(set.totalInjections || 0).toFixed(2)}`);
-            writeLine(`   Neto USD ${(set.netProfit || 0).toFixed(2)} | Pagado USD ${(set.amountPaid || 0).toFixed(2)} | Deuda Final USD ${(set.newTotalDebt || 0).toFixed(2)}`);
-          });
-        }
+        writeLine(`Total ventas: USD ${ru.summary.totalSales.toFixed(2)}`);
+        writeLine(`Total comisiones: USD ${ru.summary.totalCommissions.toFixed(2)}`);
+        writeLine(`Total premios: USD ${ru.summary.totalPrizes.toFixed(2)}`);
+        writeLine(`Total inyecciones: USD ${ru.summary.totalInjections.toFixed(2)}`);
+        writeLine(`Total liquidaciones (monto pagado): USD ${ru.summary.totalLiquidations.toFixed(2)}`);
+        writeLine(`Neto estimado/final: USD ${ru.summary.netProfit.toFixed(2)}`, 'bold', 10);
         separator();
       });
 
-      pdf.save(`Reporte-Consolidado-${reportDate}.pdf`);
-      toast.success(`Reporte consolidado listo (${reportDate})`, { id: toastId });
+      pdf.save(`Reporte-Consolidado-${reportStartDate}-a-${reportEndDate}.pdf`);
+      toast.success(`Reporte consolidado listo (${reportStartDate} -> ${reportEndDate})`, { id: toastId });
     } catch (error) {
       console.error('Error generating consolidated report:', error);
       toast.error('No se pudo generar el reporte consolidado', { id: toastId });
@@ -5464,40 +5586,77 @@ function App() {
   };
 
   const todayStr = businessDayKey;
+
+  const recentOperationalDates = useMemo(() => {
+    const collected = new Set<string>([
+      businessDayKey,
+      getQuickOperationalDate(-1),
+      getQuickOperationalDate(-2),
+      getQuickOperationalDate(-3)
+    ]);
+
+    const collectTicketDate = (ticket: LotteryTicket) => collected.add(getTicketDateKey(ticket));
+
+    tickets.forEach(collectTicketDate);
+    historyTickets.forEach(collectTicketDate);
+    archiveTickets.forEach(collectTicketDate);
+    injections.forEach(injection => injection.date && collected.add(injection.date));
+    historyInjections.forEach(injection => injection.date && collected.add(injection.date));
+    settlements.forEach(settlement => settlement.date && collected.add(settlement.date));
+    historySettlements.forEach(settlement => settlement.date && collected.add(settlement.date));
+
+    return Array.from(collected).sort((a, b) => b.localeCompare(a)).slice(0, 14);
+  }, [
+    archiveTickets,
+    businessDayKey,
+    getQuickOperationalDate,
+    getTicketDateKey,
+    historyInjections,
+    historySettlements,
+    historyTickets,
+    injections,
+    settlements,
+    tickets
+  ]);
+
+  const liquidacionQuickDateOptions = useMemo(() => {
+    const today = getQuickOperationalDate(0);
+    const yesterday = getQuickOperationalDate(-1);
+
+    return recentOperationalDates.map(dateValue => {
+      let label = dateValue;
+      if (dateValue === today) label = `Hoy (${dateValue})`;
+      if (dateValue === yesterday) label = `Ayer (${dateValue})`;
+      return { value: dateValue, label };
+    });
+  }, [getQuickOperationalDate, recentOperationalDates]);
   
   const todayStats = useMemo(() => {
     const todayTickets = tickets.filter(t => {
-      const tDate = t.timestamp?.toDate ? format(t.timestamp.toDate(), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+      const tDate = getTicketDateKey(t);
       const matchesDate = tDate === todayStr;
       const matchesUser = canAccessAllUsers || t.sellerId === user?.uid || t.sellerEmail?.toLowerCase() === user?.email?.toLowerCase();
       return matchesDate && matchesUser && (t.status === 'active' || (userProfile?.role !== 'ceo' && t.status === 'winner'));
     });
-
-    const sales = todayTickets.reduce((acc, t) => {
-      const lotBets = (t.bets || []);
-      return acc + lotBets.reduce((sum, b) => sum + (b.amount || 0), 0);
-    }, 0);
-
-    const commissions = todayTickets.reduce((acc, t) => {
-      const lotBets = (t.bets || []);
-      const lotSales = lotBets.reduce((sum, b) => sum + (b.amount || 0), 0);
-      return acc + (lotSales * (t.commissionRate || 0) / 100);
-    }, 0);
-
-    const prizes = todayTickets.reduce((acc, t) => {
-      const { totalPrize } = getTicketPrizes(t);
-      return acc + (totalPrize || 0);
-    }, 0);
-
-    const totalInjections = injections
-      .filter(i => i.date === todayStr && (canAccessAllUsers || i.userEmail?.toLowerCase() === user?.email?.toLowerCase()))
-      .reduce((acc, i) => acc + i.amount, 0);
-    const bankProfit = sales - commissions - prizes;
-    const netProfit = bankProfit + totalInjections;
+    const todayInjections = injections.filter(i => i.date === todayStr && (canAccessAllUsers || i.userEmail?.toLowerCase() === user?.email?.toLowerCase()));
+    const summary = buildFinancialSummary({
+      tickets: todayTickets,
+      injections: todayInjections,
+      targetDate: todayStr
+    });
+    const bankProfit = summary.totalSales - summary.totalCommissions - summary.totalPrizes;
     const pendingDebt = userProfile?.currentDebt || 0;
 
-    return { sales, commissions, prizes, injections: totalInjections, bankProfit, netProfit, pendingDebt };
-  }, [canAccessAllUsers, tickets, injections, todayStr, getTicketPrizes, userProfile, user?.uid, user?.email]);
+    return {
+      sales: summary.totalSales,
+      commissions: summary.totalCommissions,
+      prizes: summary.totalPrizes,
+      injections: summary.totalInjections,
+      bankProfit,
+      netProfit: summary.netProfit,
+      pendingDebt
+    };
+  }, [buildFinancialSummary, canAccessAllUsers, getTicketDateKey, injections, tickets, todayStr, user?.email, user?.uid, userProfile]);
 
   const groupedSettlements = useMemo(() => {
     const groups: { [email: string]: { [date: string]: Settlement[] } } = {};
@@ -5533,6 +5692,74 @@ function App() {
     });
   }, [activeTab, businessDayKey, canAccessAllUsers, historyTickets, tickets, historyDate, searchTerm, userProfile, user?.uid, user?.email]);
 
+  const historyTypeFilterCode = useMemo(() => {
+    return historyFilter === 'CHANCE' ? 'CH' :
+           historyFilter === 'BILLETE' ? 'BL' :
+           historyFilter === 'PALE' ? 'PL' : undefined;
+  }, [historyFilter]);
+
+  const historyLotteryCards = useMemo(() => {
+    if (activeTab !== 'history') return [];
+
+    return sortedLotteries.map(lot => {
+      const ticketsForLot = filteredTickets.filter(ticket =>
+        ticket.bets && ticket.bets.some(bet => bet && cleanText(bet.lottery) === cleanText(lot.name) && (!historyTypeFilterCode || bet.type === historyTypeFilterCode))
+      );
+      if (!ticketsForLot.length) return null;
+
+      const resultForLottery = results.find(result => result.lotteryId === lot.id && result.date === historyDate);
+      const isClosedWithResult = !isLotteryOpenForSales(lot) && !!resultForLottery;
+      const resultSignature = resultForLottery
+        ? `${resultForLottery.firstPrize}-${resultForLottery.secondPrize}-${resultForLottery.thirdPrize}`
+        : 'no-result';
+      const scopeSignature = canAccessAllUsers ? 'global' : `seller:${(user?.email || user?.uid || '').toLowerCase()}`;
+      const cacheKey = `${historyDate}|${lot.id}|${historyTypeFilterCode || 'ALL'}|${scopeSignature}|${resultSignature}`;
+
+      let cachedCard = isClosedWithResult ? closedLotteryCardsCacheRef.current.get(cacheKey) : undefined;
+      if (!cachedCard) {
+        const sales = ticketsForLot.reduce((acc, ticket) => {
+          const lotBets = (ticket.bets || []).filter(bet => bet && cleanText(bet.lottery) === cleanText(lot.name) && (!historyTypeFilterCode || bet.type === historyTypeFilterCode));
+          return acc + lotBets.reduce((sum, bet) => sum + (bet.amount || 0), 0);
+        }, 0);
+        const commissions = ticketsForLot.reduce((acc, ticket) => {
+          const lotBets = (ticket.bets || []).filter(bet => bet && cleanText(bet.lottery) === cleanText(lot.name) && (!historyTypeFilterCode || bet.type === historyTypeFilterCode));
+          const lotSales = lotBets.reduce((sum, bet) => sum + (bet.amount || 0), 0);
+          return acc + (lotSales * (ticket.commissionRate || 0) / 100);
+        }, 0);
+        const sortedTicketsForLot = ticketsForLot
+          .map(ticket => ({ t: ticket, prize: getTicketPrizes(ticket, lot.name, historyTypeFilterCode).totalPrize }))
+          .sort((a, b) => b.prize - a.prize);
+        const prizes = sortedTicketsForLot.reduce((sum, item) => sum + item.prize, 0);
+        const netProfit = sales - commissions - prizes;
+
+        cachedCard = { sales, commissions, prizes, netProfit, sortedTicketsForLot };
+        if (isClosedWithResult) {
+          closedLotteryCardsCacheRef.current.set(cacheKey, cachedCard);
+        }
+      }
+
+      const currentPage = lotteryPages[lot.id] || 1;
+      const itemsPerPage = 4;
+      const totalPages = Math.max(1, Math.ceil(cachedCard.sortedTicketsForLot.length / itemsPerPage));
+      const paginatedTickets = cachedCard.sortedTicketsForLot.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+      return {
+        lot,
+        ticketsForLot,
+        resultForLottery,
+        isClosedWithResult,
+        sales: cachedCard.sales,
+        prizes: cachedCard.prizes,
+        netProfit: cachedCard.netProfit,
+        isLoss: cachedCard.prizes > cachedCard.sales,
+        sortedTicketsForLot: cachedCard.sortedTicketsForLot,
+        currentPage,
+        totalPages,
+        paginatedTickets
+      };
+    }).filter((item): item is NonNullable<typeof item> => !!item);
+  }, [activeTab, canAccessAllUsers, filteredTickets, getTicketPrizes, historyDate, historyTypeFilterCode, isLotteryOpenForSales, lotteryPages, results, sortedLotteries, user?.email, user?.uid]);
+
   const historyStats = useMemo(() => {
     if (activeTab !== 'history') return null;
     
@@ -5554,39 +5781,88 @@ function App() {
       return acc + (totalPrize || 0);
     }, 0);
 
-    const totalInjections = injections
-      .filter(i => i.date === historyDate && (canAccessAllUsers || i.userEmail?.toLowerCase() === user?.email?.toLowerCase()))
-      .reduce((acc, i) => acc + i.amount, 0);
-    const bankProfit = sales - commissions - prizes;
-    const netProfit = bankProfit + totalInjections;
+    const summary = buildFinancialSummary({
+      tickets: hTickets,
+      injections: historyInjections,
+      targetDate: historyDate
+    });
+    const bankProfit = summary.totalSales - summary.totalCommissions - summary.totalPrizes;
 
-    return { sales, commissions, prizes, injections: totalInjections, bankProfit, netProfit };
-  }, [canAccessAllUsers, filteredTickets, injections, historyDate, getTicketPrizes, userProfile, activeTab, user?.email]);
+    return {
+      sales: summary.totalSales,
+      commissions: summary.totalCommissions,
+      prizes: summary.totalPrizes,
+      injections: summary.totalInjections,
+      bankProfit,
+      netProfit: summary.netProfit
+    };
+  }, [activeTab, buildFinancialSummary, filteredTickets, historyDate, historyInjections]);
+
+  const fetchUserOperationalDataByDate = useCallback(async (targetDate: string, userEmail: string) => {
+    const normalizedEmail = userEmail.toLowerCase().trim();
+    const { start, end } = getBusinessDayRange(targetDate);
+
+    const [ticketsByEmailSnap, injectionsSnap, settlementsSnap, resultsSnap] = await Promise.all([
+      getDocs(query(
+        collection(db, 'tickets'),
+        where('sellerEmail', '==', normalizedEmail),
+        where('timestamp', '>=', start),
+        where('timestamp', '<', end),
+        limit(1200)
+      )),
+      getDocs(query(
+        collection(db, 'injections'),
+        where('userEmail', '==', normalizedEmail),
+        where('date', '==', targetDate),
+        limit(500)
+      )),
+      getDocs(query(
+        collection(db, 'settlements'),
+        where('userEmail', '==', normalizedEmail),
+        where('date', '==', targetDate),
+        limit(300)
+      )),
+      getDocs(query(
+        collection(db, 'results'),
+        where('date', '==', targetDate),
+        limit(300)
+      ))
+    ]);
+
+    const loadedResults = resultsSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as LotteryResult));
+
+    return {
+      tickets: mergeTicketSnapshots(ticketsByEmailSnap),
+      injections: injectionsSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Injection)),
+      settlements: settlementsSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Settlement)),
+      results: loadedResults
+    };
+  }, [getBusinessDayRange, mergeTicketSnapshots]);
 
   const fetchArchiveData = useCallback(async () => {
     if (!archiveUserEmail || !archiveDate) return;
     setIsArchiveLoading(true);
     try {
-      const start = new Date(archiveDate + 'T03:00:00');
-      const end = new Date(start);
-      end.setDate(start.getDate() + 1);
-
-      const ticketsQ = query(
-        collection(db, 'tickets'),
-        where('sellerEmail', '==', archiveUserEmail),
-        where('timestamp', '>=', start),
-        where('timestamp', '<', end)
-      );
-      const ticketsSnap = await getDocs(ticketsQ);
-      setArchiveTickets(ticketsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as LotteryTicket)));
-
-      const injectionsQ = query(
-        collection(db, 'injections'),
-        where('userEmail', '==', archiveUserEmail),
-        where('date', '==', archiveDate)
-      );
-      const injectionsSnap = await getDocs(injectionsQ);
-      setArchiveInjections(injectionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Injection)));
+      if (archiveDate === businessDayKey) {
+        const currentSummary = buildFinancialSummary({
+          tickets,
+          injections,
+          settlements,
+          userEmail: archiveUserEmail,
+          targetDate: archiveDate
+        });
+        setArchiveTickets(currentSummary.tickets);
+        setArchiveInjections(currentSummary.injections);
+      } else {
+        const archiveData = await fetchUserOperationalDataByDate(archiveDate, archiveUserEmail);
+        setArchiveTickets(archiveData.tickets);
+        setArchiveInjections(archiveData.injections);
+        setResults(prev => {
+          const map = new Map(prev.map(item => [`${item.lotteryName}-${item.date}-${item.id}`, item]));
+          archiveData.results.forEach(item => map.set(`${item.lotteryName}-${item.date}-${item.id}`, item));
+          return Array.from(map.values());
+        });
+      }
 
     } catch (error) {
       console.error("Error fetching archive data:", error);
@@ -5594,13 +5870,46 @@ function App() {
     } finally {
       setIsArchiveLoading(false);
     }
-  }, [archiveUserEmail, archiveDate]);
+  }, [archiveUserEmail, archiveDate, buildFinancialSummary, businessDayKey, fetchUserOperationalDataByDate, injections, settlements, tickets]);
 
   useEffect(() => {
-    if (activeTab === 'archivo') {
-      fetchArchiveData();
+    if (activeTab !== 'liquidaciones' || !selectedUserToLiquidate || !liquidationDate) {
+      setLiquidationTicketsSnapshot([]);
+      setLiquidationInjectionsSnapshot([]);
+      setLiquidationResultsSnapshot([]);
+      return;
     }
-  }, [activeTab, fetchArchiveData]);
+
+    if (liquidationDate === businessDayKey) {
+      setLiquidationTicketsSnapshot([]);
+      setLiquidationInjectionsSnapshot([]);
+      setLiquidationResultsSnapshot([]);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLiquidationDataLoading(true);
+
+    fetchUserOperationalDataByDate(liquidationDate, selectedUserToLiquidate)
+      .then(dayData => {
+        if (cancelled) return;
+        setLiquidationTicketsSnapshot(dayData.tickets);
+        setLiquidationInjectionsSnapshot(dayData.injections);
+        setLiquidationResultsSnapshot(dayData.results);
+      })
+      .catch(error => {
+        if (cancelled) return;
+        console.error('Error loading liquidation source data:', error);
+        toast.error('No se pudieron cargar los datos históricos para liquidación');
+      })
+      .finally(() => {
+        if (!cancelled) setIsLiquidationDataLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, businessDayKey, fetchUserOperationalDataByDate, liquidationDate, selectedUserToLiquidate]);
 
   const userStats = useMemo(() => {
     const stats: Record<string, { sales: number, commissions: number, prizes: number, injections: number, utility: number }> = {};
@@ -5629,7 +5938,9 @@ function App() {
     });
 
     // Calculate from injections
-    injections.forEach(i => {
+    const sourceInjections = activeTab === 'history' ? historyInjections : injections;
+
+    sourceInjections.forEach(i => {
       const email = i.userEmail?.toLowerCase();
       if (email && stats[email] && i.date === (activeTab === 'history' ? historyDate : businessDayKey)) {
         stats[email].injections += i.amount;
@@ -5643,7 +5954,7 @@ function App() {
     });
 
     return stats;
-  }, [activeTab, businessDayKey, users, tickets, historyTickets, injections, historyDate, getTicketPrizes]);
+  }, [activeTab, businessDayKey, users, tickets, historyTickets, injections, historyInjections, historyDate, getTicketPrizes]);
 
   return (
     <>
@@ -5665,7 +5976,7 @@ function App() {
               <span>Tu cuenta ({user?.email}) no tiene permisos asignados en el sistema. Contacta al administrador.</span>
             </p>
             <button 
-              onClick={() => signOut(auth)}
+              onClick={handleLogout}
               className="w-full bg-white/10 text-white py-3 rounded-xl font-bold uppercase tracking-widest hover:bg-white/20 transition-all flex items-center justify-center gap-2"
             >
               <LogOut className="w-4 h-4" /> Cerrar Sesión
@@ -6470,30 +6781,18 @@ function App() {
 
                 {/* Tickets List */}
                 <div className="space-y-4">
-                  {sortedLotteries.map(lot => {
-                    const typeFilterCode = historyFilter === 'CHANCE' ? 'CH' : 
-                                          historyFilter === 'BILLETE' ? 'BL' : 
-                                          historyFilter === 'PALE' ? 'PL' : undefined;
-
-                    const ticketsForLot = filteredTickets.filter(t => 
-                      t.bets && t.bets.some(b => b && cleanText(b.lottery) === cleanText(lot.name) && (!typeFilterCode || b.type === typeFilterCode))
-                    );
-                    
-                    if (ticketsForLot.length === 0) return null;
+                  {historyLotteryCards.map(card => {
+                    const {
+                      lot,
+                      resultForLottery,
+                      sales,
+                      netProfit,
+                      isLoss,
+                      paginatedTickets,
+                      totalPages,
+                      currentPage
+                    } = card;
                     const isExpanded = expandedLotteries.includes(lot.id);
-                    const { sales, prizes, netProfit } = getLotteryDayStats(lot.name, historyDate, typeFilterCode);
-                    const isLoss = prizes > sales;
-
-                    const resultForLottery = results.find(r => r.lotteryId === lot.id && r.date === historyDate);
-
-                    const sortedTicketsForLot = ticketsForLot
-                      .map(t => ({ t, prize: getTicketPrizes(t, lot.name, typeFilterCode).totalPrize }))
-                      .sort((a, b) => b.prize - a.prize);
-                      
-                    const currentPage = lotteryPages[lot.id] || 1;
-                    const itemsPerPage = 4;
-                    const totalPages = Math.ceil(sortedTicketsForLot.length / itemsPerPage);
-                    const paginatedTickets = sortedTicketsForLot.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
                     return (
                       <div key={lot.id} className={`overflow-hidden rounded-xl border transition-all ${isLoss ? 'bg-red-900/20 border-red-900/50' : 'bg-[#111827] border-gray-800'} group`}>
@@ -6553,7 +6852,7 @@ function App() {
                           >
                                 <div className="space-y-3 p-4">
                                   {paginatedTickets.map(({ t: ticket }) => {
-                                    const { totalPrize, winningBets } = getTicketPrizes(ticket, lot.name, typeFilterCode);
+                                    const { totalPrize, winningBets } = getTicketPrizes(ticket, lot.name, historyTypeFilterCode);
 
                                     return (
                                       <div key={ticket.id} className={`glass-card p-2 border-white/5 bg-white/[0.01] hover:bg-white/[0.03] transition-all relative overflow-hidden ${totalPrize > 0 ? 'ring-1 ring-green-500/30' : ''}`}>
@@ -6632,7 +6931,7 @@ function App() {
                                         <div className="grid grid-cols-3 md:grid-cols-4 gap-1 mt-1">
                                           {(ticket.bets || [])
                                             .map((b, originalIdx) => ({ b, originalIdx }))
-                                            .filter(({ b }) => b && b.lottery === lot.name && (!typeFilterCode || b.type === typeFilterCode))
+                                            .filter(({ b }) => b && b.lottery === lot.name && (!historyTypeFilterCode || b.type === historyTypeFilterCode))
                                             .map(({ b, originalIdx }, i) => {
                                               const winningBet = winningBets.find(wb => wb.idx === originalIdx);
                                               
@@ -7484,17 +7783,71 @@ function App() {
                       <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">LIQUIDACIONES</h2>
                       <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">Cierre de caja y reporte de ventas</p>
                     </div>
-                    {(userProfile?.role === 'ceo' || userProfile?.role === 'admin') && (
+                    {isPrimaryCeoUser && (
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-                        <input
-                          type="date"
-                          value={consolidatedReportDate}
-                          onChange={(e) => setConsolidatedReportDate(e.target.value)}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setConsolidatedMode('day')}
+                            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${consolidatedMode === 'day' ? 'bg-primary text-primary-foreground' : 'bg-white/5 text-muted-foreground'}`}
+                          >
+                            Un DÃ­a
+                          </button>
+                          <button
+                            onClick={() => setConsolidatedMode('range')}
+                            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${consolidatedMode === 'range' ? 'bg-primary text-primary-foreground' : 'bg-white/5 text-muted-foreground'}`}
+                          >
+                            Rango
+                          </button>
+                        </div>
+                        {consolidatedMode === 'day' ? (
+                          <input
+                            type="date"
+                            value={consolidatedReportDate}
+                            onChange={(e) => {
+                              setConsolidatedReportDate(e.target.value);
+                              setConsolidatedStartDate(e.target.value);
+                              setConsolidatedEndDate(e.target.value);
+                            }}
+                            className="bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                          />
+                        ) : (
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <input
+                              type="date"
+                              value={consolidatedStartDate}
+                              onChange={(e) => setConsolidatedStartDate(e.target.value)}
+                              className="bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                            />
+                            <input
+                              type="date"
+                              value={consolidatedEndDate}
+                              onChange={(e) => setConsolidatedEndDate(e.target.value)}
+                              className="bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                            />
+                          </div>
+                        )}
+                        <select
+                          value={consolidatedMode === 'day' ? consolidatedReportDate : consolidatedEndDate}
+                          onChange={(e) => {
+                            if (consolidatedMode === 'day') {
+                              setConsolidatedReportDate(e.target.value);
+                            } else {
+                              setConsolidatedEndDate(e.target.value);
+                            }
+                          }}
                           className="bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-                        />
+                        >
+                          {recentOperationalDates.map(dateValue => (
+                            <option key={`consolidated-${dateValue}`} value={dateValue} className="bg-gray-900">{dateValue}</option>
+                          ))}
+                        </select>
                         <button
                           onClick={generateConsolidatedReport}
-                          disabled={isGeneratingYesterdayReport || !consolidatedReportDate}
+                          disabled={
+                            isGeneratingYesterdayReport ||
+                            (consolidatedMode === 'day' && !consolidatedReportDate) ||
+                            (consolidatedMode === 'range' && (!consolidatedStartDate || !consolidatedEndDate))
+                          }
                           className="bg-primary text-primary-foreground font-black uppercase tracking-widest px-4 py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           {isGeneratingYesterdayReport ? 'Generando PDF...' : 'Descargar Consolidado'}
@@ -7513,6 +7866,34 @@ function App() {
                           onChange={(e) => setLiquidationDate(e.target.value)}
                           className="w-full bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                         />
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => applyOperationalQuickDate(setLiquidationDate, 0)}
+                            className="px-2 py-1 rounded-md bg-white/5 text-[10px] font-black uppercase tracking-widest"
+                          >
+                            Hoy
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyOperationalQuickDate(setLiquidationDate, -1)}
+                            className="px-2 py-1 rounded-md bg-white/5 text-[10px] font-black uppercase tracking-widest"
+                          >
+                            Ayer
+                          </button>
+                        </div>
+                        <select
+                          value={liquidationDate}
+                          onChange={(e) => setLiquidationDate(e.target.value)}
+                          className="w-full bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                        >
+                          {liquidacionQuickDateOptions.map(option => (
+                            <option key={`liq-${option.value}`} value={option.value} className="bg-gray-900">{option.label}</option>
+                          ))}
+                        </select>
+                        {liquidationDate !== businessDayKey && isLiquidationDataLoading && (
+                          <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Cargando datos históricos...</p>
+                        )}
                       </div>
 
                       {(userProfile?.role === 'ceo' || userProfile?.canLiquidate) ? (
@@ -7566,22 +7947,17 @@ function App() {
                     <div className="lg:col-span-2">
                       {selectedUserToLiquidate ? (() => {
                         const userToLiquidate = users.find(u => u.email === selectedUserToLiquidate);
-                        const dayTickets = tickets.filter(t => {
-                          const tDate = t.timestamp?.toDate ? format(t.timestamp.toDate(), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-                          return t.sellerEmail === selectedUserToLiquidate && tDate === liquidationDate;
+                        const isCurrentOperationalDate = liquidationDate === businessDayKey;
+                        const summary = buildFinancialSummary({
+                          tickets: isCurrentOperationalDate ? tickets : liquidationTicketsSnapshot,
+                          injections: isCurrentOperationalDate ? injections : liquidationInjectionsSnapshot,
+                          userEmail: selectedUserToLiquidate,
+                          targetDate: liquidationDate,
+                          prizeResolver: (ticket: LotteryTicket) => getTicketPrizesFromSource(
+                            ticket,
+                            isCurrentOperationalDate ? results : liquidationResultsSnapshot
+                          )
                         });
-                        const dayInjections = injections.filter(i => 
-                          i.userEmail === selectedUserToLiquidate && 
-                          i.date === liquidationDate &&
-                          (i.type === 'injection' || !i.type)
-                        );
-
-                        const totalSales = dayTickets.reduce((sum, t) => sum + t.totalAmount, 0);
-                        const totalCommissions = dayTickets.reduce((sum, t) => sum + (t.totalAmount * (t.commissionRate / 100)), 0);
-                        const totalPrizes = dayTickets.reduce((sum, t) => sum + getTicketPrizes(t).totalPrize, 0);
-                        const totalInjections = dayInjections.reduce((sum, i) => sum + i.amount, 0);
-                        
-                        const netProfit = totalSales - totalCommissions - totalPrizes + totalInjections;
                         const previousDebt = userToLiquidate?.currentDebt || 0;
 
                         return (
@@ -7602,20 +7978,20 @@ function App() {
                             <div className="space-y-6">
                               <div className="flex justify-between items-center py-2 border-b border-white/5">
                                 <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Ventas Totales</span>
-                                <span className="text-sm font-bold text-white">USD {totalSales.toFixed(2)}</span>
+                                <span className="text-sm font-bold text-white">USD {summary.totalSales.toFixed(2)}</span>
                               </div>
                               <div className="flex justify-between items-center py-2 border-b border-white/5">
                                 <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Comisiones Generadas</span>
-                                <span className="text-sm font-bold text-amber-400">USD {totalCommissions.toFixed(2)}</span>
+                                <span className="text-sm font-bold text-amber-400">USD {summary.totalCommissions.toFixed(2)}</span>
                               </div>
                               <div className="flex justify-between items-center py-2 border-b border-white/5">
                                 <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Premios a Pagar</span>
-                                <span className="text-sm font-bold text-red-400">USD {totalPrizes.toFixed(2)}</span>
+                                <span className="text-sm font-bold text-red-400">USD {summary.totalPrizes.toFixed(2)}</span>
                               </div>
-                              {totalInjections !== 0 && (
+                              {summary.totalInjections !== 0 && (
                                 <div className="flex justify-between items-center py-2 border-b border-white/5">
                                   <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Inyecciones/Ajustes</span>
-                                  <span className="text-sm font-bold text-blue-400">USD {totalInjections.toFixed(2)}</span>
+                                  <span className="text-sm font-bold text-blue-400">USD {summary.totalInjections.toFixed(2)}</span>
                                 </div>
                               )}
                               
@@ -7624,7 +8000,7 @@ function App() {
                                   <p className="text-[10px] font-mono text-primary uppercase tracking-widest mb-1">Balance Neto del Día</p>
                                   <p className="text-xs text-muted-foreground uppercase tracking-tighter">Monto a entregar a la casa</p>
                                 </div>
-                                <p className="text-3xl font-black text-primary">USD {netProfit.toFixed(2)}</p>
+                                <p className="text-3xl font-black text-primary">USD {summary.netProfit.toFixed(2)}</p>
                               </div>
 
                               <div className="pt-4 space-y-3">
@@ -7733,6 +8109,31 @@ function App() {
                           onChange={(e) => setArchiveDate(e.target.value)}
                           className="w-full bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                         />
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => applyOperationalQuickDate(setArchiveDate, 0)}
+                            className="px-2 py-1 rounded-md bg-white/5 text-[10px] font-black uppercase tracking-widest"
+                          >
+                            Hoy
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyOperationalQuickDate(setArchiveDate, -1)}
+                            className="px-2 py-1 rounded-md bg-white/5 text-[10px] font-black uppercase tracking-widest"
+                          >
+                            Ayer
+                          </button>
+                        </div>
+                        <select
+                          value={archiveDate}
+                          onChange={(e) => setArchiveDate(e.target.value)}
+                          className="w-full bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                        >
+                          {recentOperationalDates.map(dateValue => (
+                            <option key={`archive-${dateValue}`} value={dateValue} className="bg-gray-900">{dateValue}</option>
+                          ))}
+                        </select>
                       </div>
 
                       {(userProfile?.role === 'ceo' || userProfile?.canLiquidate) ? (
@@ -7760,27 +8161,24 @@ function App() {
                         </div>
                       )}
 
-                      {archiveUserEmail && (
-                        <button 
-                          onClick={fetchArchiveData}
-                          disabled={isArchiveLoading}
-                          className="w-full bg-primary text-primary-foreground font-black uppercase tracking-widest py-4 rounded-xl hover:brightness-110 transition-all mt-6 shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
-                        >
-                          {isArchiveLoading ? 'Cargando...' : 'Consultar Archivo'}
-                        </button>
-                      )}
+                      <button 
+                        onClick={fetchArchiveData}
+                        disabled={isArchiveLoading || !archiveUserEmail || !archiveDate}
+                        className="w-full bg-primary text-primary-foreground font-black uppercase tracking-widest py-4 rounded-xl hover:brightness-110 transition-all mt-6 shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {isArchiveLoading ? 'Cargando...' : 'Consultar Archivo'}
+                      </button>
                     </div>
 
                     <div className="lg:col-span-2">
                       {archiveUserEmail && archiveTickets.length > 0 ? (() => {
                         const userToLiquidate = users.find(u => u.email === archiveUserEmail);
-                        
-                        const totalSales = archiveTickets.reduce((sum, t) => sum + t.totalAmount, 0);
-                        const totalCommissions = archiveTickets.reduce((sum, t) => sum + (t.totalAmount * (t.commissionRate / 100)), 0);
-                        const totalPrizes = archiveTickets.reduce((sum, t) => sum + getTicketPrizes(t).totalPrize, 0);
-                        const totalInjections = archiveInjections.reduce((sum, i) => sum + i.amount, 0);
-                        
-                        const netProfit = totalSales - totalCommissions - totalPrizes + totalInjections;
+                        const summary = buildFinancialSummary({
+                          tickets: archiveTickets,
+                          injections: archiveInjections,
+                          userEmail: archiveUserEmail,
+                          targetDate: archiveDate
+                        });
 
                         return (
                           <div className="glass-card p-8 space-y-8 bg-black border-white/10 relative overflow-hidden">
@@ -7798,27 +8196,27 @@ function App() {
                             <div className="grid grid-cols-2 gap-4">
                               <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                                 <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest mb-1">Ventas Totales</p>
-                                <p className="text-lg font-black text-white">${totalSales.toFixed(2)}</p>
+                                <p className="text-lg font-black text-white">${summary.totalSales.toFixed(2)}</p>
                               </div>
                               <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                                 <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest mb-1">Comisiones</p>
-                                <p className="text-lg font-black text-orange-400">-${totalCommissions.toFixed(2)}</p>
+                                <p className="text-lg font-black text-orange-400">-${summary.totalCommissions.toFixed(2)}</p>
                               </div>
                               <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                                 <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest mb-1">Premios Pagados</p>
-                                <p className="text-lg font-black text-red-400">-${totalPrizes.toFixed(2)}</p>
+                                <p className="text-lg font-black text-red-400">-${summary.totalPrizes.toFixed(2)}</p>
                               </div>
                               <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                                 <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest mb-1">Inyecciones</p>
-                                <p className="text-lg font-black text-blue-400">+${totalInjections.toFixed(2)}</p>
+                                <p className="text-lg font-black text-blue-400">+${summary.totalInjections.toFixed(2)}</p>
                               </div>
                             </div>
 
                             <div className="bg-primary/10 p-6 rounded-2xl border border-primary/20 flex justify-between items-center">
                               <div>
                                 <p className="text-[10px] font-mono text-primary uppercase tracking-widest mb-1">Utilidad Neta</p>
-                                <p className={`text-3xl font-black ${netProfit < 0 ? 'text-red-500' : 'text-green-400'}`}>
-                                  ${netProfit.toFixed(2)}
+                                <p className={`text-3xl font-black ${summary.netProfit < 0 ? 'text-red-500' : 'text-green-400'}`}>
+                                  ${summary.netProfit.toFixed(2)}
                                 </p>
                               </div>
                             </div>
@@ -7968,3 +8366,5 @@ function App() {
     </>
   );
 }
+
+

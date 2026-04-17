@@ -2,6 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -10,12 +14,267 @@ service cloud.firestore {
       return request.auth.token.get('email', '').lower();
     }
 
-    function isPrimaryCeo() {
-      return isAuthenticated() && currentUserEmail() == 'zsayeth09@gmail.com';
+    function getUserData(email) {
+      return exists(/databases/$(database)/documents/users/$(email.lower()))
+        ? get(/databases/$(database)/documents/users/$(email.lower())).data
+        : null;
     }
 
-    match /{document=**} {
-      allow read, write: if isPrimaryCeo();
+    function currentUserData() {
+      return isAuthenticated() ? getUserData(currentUserEmail()) : null;
+    }
+
+    function hasUserProfile() {
+      return isAuthenticated() && currentUserData() != null;
+    }
+
+    function isCeo() {
+      return hasUserProfile() && currentUserData().get('role', '') == 'ceo';
+    }
+
+    function isPrimaryCeo() {
+      return isCeo() && currentUserData().get('isPrimary', false) == true;
+    }
+
+    function isAdmin() {
+      return hasUserProfile() && currentUserData().get('role', '') == 'admin';
+    }
+
+    function canReadAllSalesData() {
+      return isCeo() || isAdmin();
+    }
+
+    function isOwner(email) {
+      return isAuthenticated() && currentUserEmail() == email.lower();
+    }
+
+    function isSellerTicketOwner() {
+      return isAuthenticated() &&
+        (
+          resource.data.get('sellerId', '') == request.auth.uid ||
+          resource.data.get('sellerEmail', '').lower() == currentUserEmail()
+        );
+    }
+
+    function incomingTicketBelongsToCurrentUser() {
+      return isAuthenticated() &&
+        request.resource.data.get('sellerId', '') == request.auth.uid &&
+        request.resource.data.get('sellerEmail', '').lower() == currentUserEmail();
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'name', 'role']) &&
+        data.email is string &&
+        data.email.size() < 120 &&
+        data.name is string &&
+        data.name.size() < 120 &&
+        data.role in ['ceo', 'admin', 'seller'] &&
+        (
+          !data.keys().hasAny(['status']) ||
+          data.get('status', 'active') in ['active', 'inactive']
+        ) &&
+        (
+          !data.keys().hasAny(['isPrimary']) ||
+          data.get('isPrimary', false) is bool
+        );
+    }
+
+    function createdCeoHasValidPrimaryFlag() {
+      return request.resource.data.get('role', '') != 'ceo' ||
+             request.resource.data.get('isPrimary', false) == false;
+    }
+
+    function updatedUserKeepsPrimaryFlag() {
+      return request.resource.data.get('isPrimary', false) == resource.data.get('isPrimary', false);
+    }
+
+    // Owner can only update harmless personal preference fields.
+    function ownerProfileUpdateIsSafe() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(['preferredChancePrice']);
+    }
+
+    function canManageUserCreate() {
+      return hasUserProfile() && (
+        (isPrimaryCeo() && isValidUser(request.resource.data) && createdCeoHasValidPrimaryFlag()) ||
+        (isAdmin() && isValidUser(request.resource.data) && request.resource.data.get('role', '') == 'seller')
+      );
+    }
+
+    function canManageUserUpdate() {
+      return hasUserProfile() && (
+        (
+          isPrimaryCeo() &&
+          updatedUserKeepsPrimaryFlag()
+        ) ||
+        (
+          isAdmin() &&
+          resource.data.get('role', '') == 'seller' &&
+          request.resource.data.get('role', '') == 'seller' &&
+          updatedUserKeepsPrimaryFlag()
+        )
+      );
+    }
+
+    function canManageUserDelete() {
+      return hasUserProfile() && (
+        (isPrimaryCeo()) ||
+        (isAdmin() && resource.data.get('role', '') == 'seller')
+      );
+    }
+
+    // ===============================================================
+    // users
+    // ===============================================================
+
+    match /users/{email} {
+      allow read: if isAuthenticated() && (
+        isOwner(email) ||
+        canReadAllSalesData()
+      );
+
+      allow create: if canManageUserCreate();
+
+      allow update: if
+        canManageUserUpdate() ||
+        (isOwner(email) && ownerProfileUpdateIsSafe());
+
+      allow delete: if canManageUserDelete() &&
+        (
+          resource.data.get('role', '') != 'ceo' ||
+          isPrimaryCeo()
+        );
+    }
+
+    // ===============================================================
+    // Optional provisioning support (kept for compatibility)
+    // ===============================================================
+
+    match /userProvisioning/{email} {
+      allow read: if hasUserProfile() && (isOwner(email) || canReadAllSalesData());
+
+      allow create: if hasUserProfile() && (
+        isPrimaryCeo() ||
+        (isAdmin() && request.resource.data.get('role', '') == 'seller')
+      );
+
+      allow update: if hasUserProfile() && (
+        isPrimaryCeo() ||
+        (isAdmin() && resource.data.get('role', '') == 'seller' && request.resource.data.get('role', '') == 'seller')
+      );
+
+      allow delete: if hasUserProfile() && (
+        isPrimaryCeo() ||
+        (isAdmin() && resource.data.get('role', '') == 'seller')
+      );
+    }
+
+    // ===============================================================
+    // lotteries
+    // ===============================================================
+
+    match /lotteries/{lotteryId} {
+      allow read: if hasUserProfile();
+      allow write: if isCeo() || isAdmin();
+    }
+
+    // ===============================================================
+    // tickets
+    // ===============================================================
+
+    match /tickets/{ticketId} {
+      allow read: if hasUserProfile() && (
+        canReadAllSalesData() ||
+        isSellerTicketOwner()
+      );
+
+      allow create: if hasUserProfile() && (
+        isCeo() ||
+        isAdmin() ||
+        incomingTicketBelongsToCurrentUser()
+      );
+
+      allow update: if
+        isCeo() ||
+        isAdmin() ||
+        (
+          hasUserProfile() &&
+          isSellerTicketOwner() &&
+          resource.data.get('status', '') == 'active' &&
+          resource.data.get('liquidated', false) == false &&
+          request.resource.data.get('sellerId', '') == resource.data.get('sellerId', '') &&
+          request.resource.data.get('sellerEmail', '').lower() == resource.data.get('sellerEmail', '').lower() &&
+          request.resource.data.get('status', '') == resource.data.get('status', '') &&
+          request.resource.data.get('liquidated', false) == resource.data.get('liquidated', false) &&
+          request.resource.data.get('settlementId', null) == resource.data.get('settlementId', null) &&
+          request.resource.data.get('timestamp', null) == resource.data.get('timestamp', null)
+        );
+
+      allow delete: if
+        isCeo() ||
+        (
+          hasUserProfile() &&
+          isSellerTicketOwner() &&
+          resource.data.get('status', '') == 'active' &&
+          resource.data.get('liquidated', false) == false
+        );
+    }
+
+    // ===============================================================
+    // results
+    // ===============================================================
+
+    match /results/{resultId} {
+      allow read: if hasUserProfile();
+      allow write: if isCeo() || isAdmin();
+    }
+
+    // ===============================================================
+    // injections
+    // ===============================================================
+
+    match /injections/{injectionId} {
+      allow read: if hasUserProfile() && (
+        canReadAllSalesData() ||
+        resource.data.get('userEmail', '').lower() == currentUserEmail()
+      );
+
+      allow create: if isCeo() || isAdmin();
+      allow update: if isCeo() || isAdmin();
+      allow delete: if isPrimaryCeo();
+    }
+
+    // ===============================================================
+    // settlements
+    // ===============================================================
+
+    match /settlements/{settlementId} {
+      allow read: if hasUserProfile() && (
+        canReadAllSalesData() ||
+        resource.data.get('userEmail', '').lower() == currentUserEmail()
+      );
+
+      allow write: if isCeo() || isAdmin();
+    }
+
+    // ===============================================================
+    // settings
+    // ===============================================================
+
+    match /settings/global {
+      allow read: if hasUserProfile();
+      allow write: if isCeo();
+    }
+
+    // ===============================================================
+    // Public / connectivity helpers
+    // ===============================================================
+
+    match /public/connectivity {
+      allow read, write: if !isAuthenticated() || hasUserProfile();
+    }
+
+    match /test/connection {
+      allow read, write: if !isAuthenticated() || hasUserProfile();
     }
   }
 }

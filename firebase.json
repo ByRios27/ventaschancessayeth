@@ -6,6 +6,30 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "headers": [
+      {
+        "source": "/manifest.webmanifest",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/manifest+json; charset=utf-8"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/sw.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ],
     "rewrites": [
       {
         "source": "**",
@@ -14,7 +38,6 @@
     ]
   },
   "firestore": {
-    "rules": "firestore.rules",
-    "database": "ai-studio-70ef8024-6b51-42fe-bb40-1626cd7e4c42"
+    "rules": "firestore.rules"
   }
 }
