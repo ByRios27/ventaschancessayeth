@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, Component, ErrorInfo, ReactNode, useRef } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback, Component, ErrorInfo, ReactNode, useRef } from 'react';
 import { InyeccionesRequeridas } from './components/InyeccionesRequeridas';
 import { 
   auth, 
@@ -274,6 +274,8 @@ const formatTime12h = (time24: string) => {
 
 interface FirestoreErrorInfo {
   error: string;
+  code: string;
+  cause: string;
   operationType: OperationType;
   path: string | null;
   authInfo: {
@@ -292,8 +294,12 @@ interface FirestoreErrorInfo {
 }
 
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const firebaseCode = (error as { code?: string })?.code || 'unknown';
+  const firebaseMessage = error instanceof Error ? error.message : String(error);
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: firebaseMessage,
+    code: firebaseCode,
+    cause: firebaseMessage,
     authInfo: {
       userId: auth.currentUser?.uid || 'no-uid',
       email: auth.currentUser?.email || 'no-email',
@@ -310,8 +316,26 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     operationType,
     path
   }
+
+  const operationLabel = ({
+    [OperationType.CREATE]: 'crear',
+    [OperationType.UPDATE]: 'actualizar',
+    [OperationType.DELETE]: 'eliminar',
+    [OperationType.LIST]: 'listar',
+    [OperationType.GET]: 'leer',
+    [OperationType.WRITE]: 'guardar'
+  } as Record<OperationType, string>)[operationType];
+
+  const target = path || 'documento';
+  toast.error(
+    `Error al ${operationLabel} (${target})`,
+    {
+      description: `CÃ³digo: ${firebaseCode} | Causa: ${firebaseMessage}`
+    }
+  );
+
   console.error('Firestore Error Details:', JSON.stringify(errInfo, null, 2));
-  throw new Error(JSON.stringify(errInfo));
+  return errInfo;
 }
 
 interface ErrorBoundaryProps {
@@ -363,7 +387,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               onClick={() => window.location.reload()}
               className="w-full bg-[#141414] text-white py-3 font-bold uppercase tracking-widest"
             >
-              Reiniciar Aplicación
+              Reiniciar AplicaciÃ³n
             </button>
           </div>
         </div>
@@ -450,21 +474,21 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
           const mult = globalSettings.pl12Multiplier || 1000;
           const p = (bet.amount || 0) * mult;
           totalPrize += p;
-          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r2, matchType: 'Palé' });
+          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r2, matchType: 'PalÃ©' });
         }
         // 1st and 3rd
         if ((n1 === r1 && n2 === r3) || (n1 === r3 && n2 === r1)) {
           const mult = globalSettings.pl13Multiplier || 1000;
           const p = (bet.amount || 0) * mult;
           totalPrize += p;
-          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r3, matchType: 'Palé' });
+          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r3, matchType: 'PalÃ©' });
         }
         // 2nd and 3rd
         if ((n1 === r2 && n2 === r3) || (n1 === r3 && n2 === r2)) {
           const mult = globalSettings.pl23Multiplier || 200;
           const p = (bet.amount || 0) * mult;
           totalPrize += p;
-          winningBets.push({ idx, prize: p, rank: 2, lotteryName: bet.lottery, winningNumber: r2 + '-' + r3, matchType: 'Palé' });
+          winningBets.push({ idx, prize: p, rank: 2, lotteryName: bet.lottery, winningNumber: r2 + '-' + r3, matchType: 'PalÃ©' });
         }
       } else if (bet.type === 'BL' && globalSettings.billetesEnabled) {
         // Billete: 4 digits. Check against first, second, and third prizes
@@ -507,12 +531,12 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
           if (betNum.slice(1, 4) === winningNum.slice(1, 4)) {
             const p = amount * prizeMults.last3;
             totalPrize += p;
-            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '3 Últimas' });
+            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '3 Ãºltimas' });
           } else if (betNum.slice(2, 4) === winningNum.slice(2, 4)) {
             // Last 2 digits
             const p = amount * prizeMults.last2;
             totalPrize += p;
-            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '2 Últimas' });
+            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '2 Ãºltimas' });
           }
         };
 
@@ -535,7 +559,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
     const node = ticketRef.current;
 
     if (!node) {
-      console.error('No se encontró el elemento de exportación');
+      console.error('No se encontrÃ³ el elemento de exportaciÃ³n');
       toast.error('Error al preparar el ticket');
       return;
     }
@@ -623,7 +647,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
             link.download = `ticket-${ticket.id.slice(0, 8)}.png`;
             link.href = dataUrl;
             link.click();
-            toast.info('Tu navegador móvil no permite adjuntar imagen al compartir. Se descargó el ticket para enviarlo manualmente.');
+            toast.info('Tu navegador mÃ³vil no permite adjuntar imagen al compartir. Se descargÃ³ el ticket para enviarlo manualmente.');
             shared = true;
           }
         } catch (webErr) {
@@ -667,7 +691,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
       link.download = `ticket-${ticket.id.slice(0, 4)}.png`;
       link.href = dataUrl;
       link.click();
-      toast.success('Ticket descargado con éxito');
+      toast.success('Ticket descargado con Ã©xito');
     } catch (err) {
       console.error(err);
       toast.error('Error al descargar el ticket');
@@ -813,7 +837,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
         
         if (hasWon) {
           doc.setFontSize(6);
-          const matchTypesStr = betWinnings.map(wb => `${wb.rank}º${wb.matchType ? ' ' + wb.matchType : ''}`).join(', ');
+          const matchTypesStr = betWinnings.map(wb => `${wb.rank}Âº${wb.matchType ? ' ' + wb.matchType : ''}`).join(', ');
           doc.text(`PREMIA: $${betTotalPrize.toFixed(2)} (${matchTypesStr})`, 14, y + 2.5);
           doc.setFontSize(10);
         }
@@ -853,7 +877,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
     y += 10;
     doc.setFontSize(8);
     doc.setFont('helvetica', 'italic');
-    doc.text('¡Gracias por su compra!', 40, y, { align: 'center' });
+    doc.text('Â¡Gracias por su compra!', 40, y, { align: 'center' });
     y += 4;
     doc.text('Verifique su ticket antes de salir.', 40, y, { align: 'center' });
 
@@ -930,7 +954,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
           {/* Bets Table */}
           <div className="mb-4">
             <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-1 px-1 border-b border-gray-100 pb-1">
-              <span>Descripción</span>
+              <span>DescripciÃ³n</span>
               <div className="flex gap-4">
                 <span>Cant</span>
                 <span>Subtotal</span>
@@ -992,7 +1016,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
                                   <div className="flex flex-wrap gap-0.5 ml-1">
                                     {betWinnings.map((wb, wIdx) => (
                                       <span key={wIdx} className="text-[6px] font-mono bg-yellow-500 text-black px-1 rounded font-bold uppercase leading-tight">
-                                        {wb.rank}º{wb.matchType ? ` ${wb.matchType}` : ''}
+                                        {wb.rank}Âº{wb.matchType ? ` ${wb.matchType}` : ''}
                                       </span>
                                     ))}
                                   </div>
@@ -1061,7 +1085,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
               <QRCode value={`ticket:${ticket.id}`} size={80} />
             </div>
             <div className="text-center">
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-800">¡Buena Suerte!</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-800">Â¡Buena Suerte!</p>
               <p className="text-[10px] font-mono uppercase text-gray-400 max-w-[200px] leading-relaxed">Este comprobante es indispensable para reclamar su premio.</p>
             </div>
           </div>
@@ -1105,7 +1129,7 @@ const Login = () => {
 
   const handleResetPassword = async () => {
     if (!username) {
-      toast.error('Ingrese su correo para restablecer la contraseña');
+      toast.error('Ingrese su correo para restablecer la contraseÃ±a');
       return;
     }
     const cleanUsername = username.trim().toLowerCase().replace(/\s/g, '');
@@ -1130,16 +1154,16 @@ const Login = () => {
     console.log("handleCredentialsLogin triggered", { username });
     
     if (!username || !password) {
-      toast.error('Ingrese usuario y contraseña');
+      toast.error('Ingrese usuario y contraseÃ±a');
       return;
     }
     
     setLoading(true);
-    const toastId = toast.loading('Iniciando sesión...');
+    const toastId = toast.loading('Iniciando sesiÃ³n...');
     
     try {
       if (!auth) {
-        throw new Error("Firebase Auth no está inicializado");
+        throw new Error("Firebase Auth no estÃ¡ inicializado");
       }
 
       const cleanUsername = username.trim().toLowerCase().replace(/\s/g, '');
@@ -1173,29 +1197,29 @@ const Login = () => {
         if ((profile.status || 'active') !== 'active') {
           await signOut(auth);
           localStorage.removeItem('sessionBusinessDay');
-          toast.error('Tu usuario está inactivo. Contacta al administrador.');
+          toast.error('Tu usuario estÃ¡ inactivo. Contacta al administrador.');
           return;
         }
       }
       console.log("User signed in successfully:", userCredential.user.uid);
       localStorage.setItem('sessionBusinessDay', format(getBusinessDate(), 'yyyy-MM-dd'));
       
-      toast.success('Sesión iniciada', { id: toastId });
+      toast.success('SesiÃ³n iniciada', { id: toastId });
     } catch (error: any) {
       console.error("Auth failed error details:", error);
       let errorMessage = "Credenciales incorrectas";
       
       if (error.code === 'auth/invalid-credential') {
-        errorMessage = "Credenciales incorrectas (usuario o contraseña no coinciden). Si olvidó su clave, use el botón de recuperar.";
+        errorMessage = "Credenciales incorrectas (usuario o contraseÃ±a no coinciden). Si olvidÃ³ su clave, use el botÃ³n de recuperar.";
         if (!username.includes('@')) {
           errorMessage += ". Verifique si debe usar su correo completo (ej: @gmail.com)";
         }
       } else if (error.code === 'auth/invalid-email') {
-        errorMessage = "El formato del correo no es válido";
+        errorMessage = "El formato del correo no es vÃ¡lido";
       } else if (error.code === 'auth/network-request-failed') {
-        errorMessage = "Error de red. Verifique su conexión a internet.";
+        errorMessage = "Error de red. Verifique su conexiÃ³n a internet.";
       } else if (error.code === 'auth/operation-not-allowed') {
-        errorMessage = "El inicio de sesión con correo/contraseña no está habilitado en Firebase";
+        errorMessage = "El inicio de sesiÃ³n con correo/contraseÃ±a no estÃ¡ habilitado en Firebase";
       } else if (error.message) {
         errorMessage = `Error: ${error.message}`;
       }
@@ -1226,7 +1250,7 @@ const Login = () => {
             <span>Chance Pro</span>
           </h1>
           <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-[0.2em] mt-2">
-            <span>Sistema de Gestión v1.0.0</span>
+            <span>Sistema de GestiÃ³n v1.0.0</span>
           </p>
         </div>
         
@@ -1248,7 +1272,7 @@ const Login = () => {
           </div>
           <div className="space-y-2">
             <label className="block text-[10px] font-mono uppercase tracking-widest text-muted-foreground ml-1">
-              <span>Contraseña</span>
+              <span>ContraseÃ±a</span>
             </label>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -1257,7 +1281,7 @@ const Login = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 p-4 pl-12 rounded-xl font-mono text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-muted-foreground/30"
-                placeholder="••••••••"
+                placeholder="â¬¢â¬¢â¬¢â¬¢â¬¢â¬¢â¬¢â¬¢"
               />
             </div>
           </div>
@@ -1268,7 +1292,7 @@ const Login = () => {
               onClick={handleResetPassword}
               className="text-[10px] font-mono uppercase tracking-widest text-primary hover:underline"
             >
-              <span>¿Olvidó su contraseña?</span>
+              <span>Â¿OlvidÃ³ su contraseÃ±a?</span>
             </button>
           </div>
 
@@ -1346,7 +1370,7 @@ const LotterySelectorModal = ({ show, lotteries, onSelect, onClose }: {
           <h3 className="text-xl font-black uppercase tracking-tighter italic">Seleccionar Sorteo</h3>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg"><X className="w-5 h-5" /></button>
         </div>
-        <p className="text-xs text-muted-foreground mb-6 uppercase font-mono tracking-widest">¿Para qué sorteo desea duplicar esta lista?</p>
+        <p className="text-xs text-muted-foreground mb-6 uppercase font-mono tracking-widest">Â¿Para quÃ© sorteo desea duplicar esta lista?</p>
         <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
           {lotteries.filter(l => l.active).map(lot => (
             <button
@@ -1559,14 +1583,14 @@ const LotteryModal = ({ show, lottery, onSave, onClose, globalSettings }: {
         
         <div className="space-y-6">
           <div className="space-y-4">
-            <h4 className="text-[10px] font-mono font-bold uppercase text-primary border-b border-white/10 pb-1">Información Básica</h4>
+            <h4 className="text-[10px] font-mono font-bold uppercase text-primary border-b border-white/10 pb-1">InformaciÃ³n BÃ¡sica</h4>
             <div>
               <label className="text-[10px] font-mono uppercase text-muted-foreground block mb-1">Nombre del Sorteo</label>
               <input 
                 type="text" 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ej: Lotería de Medellín"
+                placeholder="Ej: LoterÃ­a de MedellÃ­n"
                 className="w-full bg-white/5 border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -1702,7 +1726,7 @@ const GlobalSettingsModal = ({ show, settings, onSave, onClose }: {
       >
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-black uppercase tracking-tighter italic">
-            Configuración Global de Premios
+            ConfiguraciÃ³n Global de Premios
           </h3>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg"><X className="w-5 h-5" /></button>
         </div>
@@ -1716,13 +1740,13 @@ const GlobalSettingsModal = ({ show, settings, onSave, onClose }: {
                 onClick={handleAddPrice}
                 className="flex items-center gap-1 text-[9px] font-bold uppercase bg-primary/20 text-primary px-2 py-1 rounded hover:bg-primary/30 transition-colors"
               >
-                <Plus className="w-3 h-3" /> Añadir Precio
+                <Plus className="w-3 h-3" /> AÃ±adir Precio
               </button>
             </div>
             
             <div className="space-y-4">
               {chancePrices.length === 0 && (
-                <p className="text-xs text-muted-foreground italic text-center py-4">No hay precios configurados. Añada uno para vender Chance.</p>
+                <p className="text-xs text-muted-foreground italic text-center py-4">No hay precios configurados. AÃ±ada uno para vender Chance.</p>
               )}
               {chancePrices.map((config, idx) => (
                 <div key={idx} className="bg-white/5 border border-border rounded-xl p-4 relative group">
@@ -1780,14 +1804,14 @@ const GlobalSettingsModal = ({ show, settings, onSave, onClose }: {
           {/* Pales Section */}
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-white/10 pb-1">
-              <h4 className="text-[10px] font-mono font-bold uppercase text-primary">Configuración de Pales (PL)</h4>
+              <h4 className="text-[10px] font-mono font-bold uppercase text-primary">ConfiguraciÃ³n de Pales (PL)</h4>
               <button 
                 onClick={() => setPalesEnabled(!palesEnabled)}
                 className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase transition-all border ${
                   palesEnabled ? 'bg-green-500/20 border-green-500 text-green-500' : 'bg-red-500/20 border-red-500 text-red-500'
                 }`}
               >
-                {palesEnabled ? '✓ Activado' : 'Desactivado'}
+                {palesEnabled ? 'âœ“ Activado' : 'Desactivado'}
               </button>
             </div>
             
@@ -1827,14 +1851,14 @@ const GlobalSettingsModal = ({ show, settings, onSave, onClose }: {
           {/* Billete Section */}
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-white/10 pb-1">
-              <h4 className="text-[10px] font-mono font-bold uppercase text-primary">Configuración de Billetes (BL - 4 Cifras)</h4>
+              <h4 className="text-[10px] font-mono font-bold uppercase text-primary">ConfiguraciÃ³n de Billetes (BL - 4 Cifras)</h4>
               <button 
                 onClick={() => setBilletesEnabled(!billetesEnabled)}
                 className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase transition-all border ${
                   billetesEnabled ? 'bg-green-500/20 border-green-500 text-green-500' : 'bg-red-500/20 border-red-500 text-red-500'
                 }`}
               >
-                {billetesEnabled ? '✓ Activado' : 'Desactivado'}
+                {billetesEnabled ? 'âœ“ Activado' : 'Desactivado'}
               </button>
             </div>
             
@@ -1872,7 +1896,7 @@ const GlobalSettingsModal = ({ show, settings, onSave, onClose }: {
                           />
                         </div>
                         <div className="bg-black/20 p-2 rounded-lg">
-                          <label className="text-[8px] font-mono uppercase text-muted-foreground block mb-1">Últimas 3</label>
+                          <label className="text-[8px] font-mono uppercase text-muted-foreground block mb-1">Ãšltimas 3</label>
                           <input 
                             type="number" 
                             value={Number.isNaN(prizes.last3) ? '' : prizes.last3}
@@ -1896,7 +1920,7 @@ const GlobalSettingsModal = ({ show, settings, onSave, onClose }: {
                           />
                         </div>
                         <div className="bg-black/20 p-2 rounded-lg">
-                          <label className="text-[8px] font-mono uppercase text-muted-foreground block mb-1">Últimas 2</label>
+                          <label className="text-[8px] font-mono uppercase text-muted-foreground block mb-1">Ãšltimas 2</label>
                           <input 
                             type="number" 
                             value={Number.isNaN(prizes.last2) ? '' : prizes.last2}
@@ -2067,7 +2091,7 @@ const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targ
         liquidated: false
       });
       await batch.commit();
-      toast.success('Inyección añadida');
+      toast.success('InyecciÃ³n aÃ±adida');
       onClose();
       setTargetEmail('');
       setAmount('');
@@ -2088,7 +2112,7 @@ const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targ
       >
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-black uppercase tracking-tighter italic">
-            Añadir Inyección
+            AÃ±adir InyecciÃ³n
           </h3>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg"><X className="w-5 h-5" /></button>
         </div>
@@ -2099,7 +2123,7 @@ const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targ
               onClick={() => setType('injection')}
               className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all bg-primary text-primary-foreground`}
             >
-              Inyección
+              InyecciÃ³n
             </button>
           </div>
 
@@ -2140,7 +2164,7 @@ const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targ
               type === 'injection' ? 'bg-primary text-primary-foreground hover:brightness-110' : type === 'payment' ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-red-500 text-white hover:bg-red-600'
             }`}
           >
-            {loading ? 'Guardando...' : (type === 'injection' ? 'Guardar Inyección' : type === 'payment' ? 'Guardar Abono' : 'Guardar Deuda')}
+            {loading ? 'Guardando...' : (type === 'injection' ? 'Guardar InyecciÃ³n' : type === 'payment' ? 'Guardar Abono' : 'Guardar Deuda')}
           </button>
         </div>
       </motion.div>
@@ -2218,12 +2242,12 @@ const UserModal = ({ show, userProfile, onSave, onClose, currentUserRole }: {
 
           {!userProfile && (
             <div className="space-y-2">
-              <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Contraseña</label>
+              <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">ContraseÃ±a</label>
               <input 
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Mínimo 6 caracteres"
+                placeholder="MÃ­nimo 6 caracteres"
                 className="w-full bg-white/5 border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
               />
             </div>
@@ -2232,7 +2256,7 @@ const UserModal = ({ show, userProfile, onSave, onClose, currentUserRole }: {
           {!userProfile && (
             <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl">
               <p className="text-xs text-primary font-mono uppercase tracking-widest text-center">
-                El ID de Vendedor y el Nombre se generarán automáticamente al guardar.
+                El ID de Vendedor y el Nombre se generarÃ¡n automÃ¡ticamente al guardar.
               </p>
             </div>
           )}
@@ -2334,7 +2358,7 @@ const UserModal = ({ show, userProfile, onSave, onClose, currentUserRole }: {
                 return;
               }
               if (!userProfile && (!password || password.length < 6)) {
-                toast.error('La contraseña debe tener al menos 6 caracteres');
+                toast.error('La contraseÃ±a debe tener al menos 6 caracteres');
                 return;
               }
               onSave({ 
@@ -2422,7 +2446,7 @@ const FastEntryModal = ({ show, onAdd, onClose, selectedLotteries, chancePrice, 
           }
 
           if (type === 'PL' && quantity > 5) {
-            invalidTokens.push(`${token} (Máx 5 comb)`);
+            invalidTokens.push(`${token} (MÃ¡x 5 comb)`);
           } else {
             selectedLotteries.forEach(lottery => {
               const existingIdx = validBets.findIndex(b => 
@@ -2465,17 +2489,17 @@ const FastEntryModal = ({ show, onAdd, onClose, selectedLotteries, chancePrice, 
         className="glass-card max-w-2xl w-full p-4 md:p-8 max-h-[95vh] flex flex-col"
       >
         <div className="flex justify-between items-center mb-4 md:mb-6">
-          <h3 className="text-lg md:text-xl font-black uppercase tracking-tighter italic">Copiado Rápido</h3>
+          <h3 className="text-lg md:text-xl font-black uppercase tracking-tighter italic">Copiado RÃ¡pido</h3>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg"><X className="w-5 h-5" /></button>
         </div>
 
         <p className="text-[10px] md:text-xs text-muted-foreground font-mono mb-4">
-          Pegue su lista de números y montos. Formatos soportados: 87-3, 5-34, 88.3, 1123-2, 8939.4. Separados por espacios o saltos de línea.
+          Pegue su lista de nÃºmeros y montos. Formatos soportados: 87-3, 5-34, 88.3, 1123-2, 8939.4. Separados por espacios o saltos de lÃ­nea.
         </p>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 bg-white/5 p-3 rounded-xl border border-border">
           <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Formato: {invertFormat ? 'Cantidad-Número' : 'Número-Cantidad'}
+            Formato: {invertFormat ? 'Cantidad-NÃºmero' : 'NÃºmero-Cantidad'}
           </span>
           <button
             onClick={() => setInvertFormat(!invertFormat)}
@@ -2504,7 +2528,7 @@ const FastEntryModal = ({ show, onAdd, onClose, selectedLotteries, chancePrice, 
 
         {preview.valid.length > 0 && (
           <div className="flex-1 overflow-y-auto mb-6 bg-black/20 rounded-xl p-4 border border-border/50">
-            <h4 className="text-sm font-bold text-green-400 mb-2">Apuestas Válidas ({preview.valid.length / selectedLotteries.length} números x {selectedLotteries.length} sorteos)</h4>
+            <h4 className="text-sm font-bold text-green-400 mb-2">Apuestas VÃ¡lidas ({preview.valid.length / selectedLotteries.length} nÃºmeros x {selectedLotteries.length} sorteos)</h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
               {preview.valid.slice(0, 20).map((bet, i) => (
                 <div key={i} className="text-xs font-mono bg-white/5 p-2 rounded border border-border/50 flex justify-between items-center">
@@ -2516,7 +2540,7 @@ const FastEntryModal = ({ show, onAdd, onClose, selectedLotteries, chancePrice, 
                 </div>
               ))}
               {preview.valid.length > 20 && (
-                <div className="text-xs font-mono text-muted-foreground p-2 col-span-full">...y {preview.valid.length - 20} más</div>
+                <div className="text-xs font-mono text-muted-foreground p-2 col-span-full">...y {preview.valid.length - 20} mÃ¡s</div>
               )}
             </div>
           </div>
@@ -2524,7 +2548,7 @@ const FastEntryModal = ({ show, onAdd, onClose, selectedLotteries, chancePrice, 
 
         {preview.invalid.length > 0 && (
           <div className="mb-6 bg-red-500/10 rounded-xl p-4 border border-red-500/20">
-            <h4 className="text-sm font-bold text-red-400 mb-2">Formatos Inválidos ({preview.invalid.length})</h4>
+            <h4 className="text-sm font-bold text-red-400 mb-2">Formatos InvÃ¡lidos ({preview.invalid.length})</h4>
             <div className="flex flex-wrap gap-2">
               {preview.invalid.map((token, i) => (
                 <span key={i} className="text-xs font-mono bg-red-500/20 text-red-300 px-2 py-1 rounded">{token}</span>
@@ -2539,7 +2563,7 @@ const FastEntryModal = ({ show, onAdd, onClose, selectedLotteries, chancePrice, 
               onAdd(preview.valid);
               onClose();
             } else {
-              toast.error('No hay apuestas válidas para agregar');
+              toast.error('No hay apuestas vÃ¡lidas para agregar');
             }
           }}
           disabled={preview.valid.length === 0}
@@ -2678,7 +2702,7 @@ const LotteryStatsCard: React.FC<LotteryStatsCardProps> = ({
             <h3 className="text-base font-medium text-[#E5E7EB] tracking-wide">{cleanText(lottery.name)}</h3>
             <div className="flex items-center gap-2 text-sm text-[#9CA3AF] mt-1 font-normal">
               <span>{lottery.drawTime}</span>
-              <span>•</span>
+              <span>â¬¢</span>
               <span>{historyDate}</span>
             </div>
           </div>
@@ -2895,9 +2919,9 @@ const cleanText = (text: string) => {
   // Replace common corrupted patterns found in the database
   // More aggressive regex to catch variations of the corrupted characters
   return text
-    .replace(/[ØÝ<][^a-zA-Z0-9\s()\-:/]*/g, 'Lotería')
-    .replace(/Lotería+/g, 'Lotería')
-    .replace(/Lotería\s+Lotería/g, 'Lotería')
+    .replace(/[Ã˜Ã<][^a-zA-Z0-9\s()\-:/]*/g, 'LoterÃ­a')
+    .replace(/LoterÃ­a+/g, 'LoterÃ­a')
+    .replace(/LoterÃ­a\s+LoterÃ­a/g, 'LoterÃ­a')
     .trim();
 };
 
@@ -2970,8 +2994,12 @@ function App() {
   const [historyFilter, setHistoryFilter] = useState<'TODO' | 'CHANCE' | 'BILLETE' | 'PALE'>('TODO');
   const [showTicketModal, setShowTicketModal] = useState<{ ticket: LotteryTicket, selectedLotteryName?: string } | null>(null);
   const [showLotteryModal, setShowLotteryModal] = useState<boolean>(false);
-  const [showResultModal, setShowResultModal] = useState<boolean>(false);
   const [editingResult, setEditingResult] = useState<LotteryResult | null>(null);
+  const [resultFormDate, setResultFormDate] = useState(format(getBusinessDate(), 'yyyy-MM-dd'));
+  const [resultFormLotteryId, setResultFormLotteryId] = useState('');
+  const [resultFormFirstPrize, setResultFormFirstPrize] = useState('');
+  const [resultFormSecondPrize, setResultFormSecondPrize] = useState('');
+  const [resultFormThirdPrize, setResultFormThirdPrize] = useState('');
   const [historyDate, setHistoryDate] = useState(format(getBusinessDate(), 'yyyy-MM-dd'));
   const [editingLottery, setEditingLottery] = useState<Lottery | null>(null);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
@@ -3037,6 +3065,7 @@ function App() {
   const [liquidationTicketsSnapshot, setLiquidationTicketsSnapshot] = useState<LotteryTicket[]>([]);
   const [liquidationInjectionsSnapshot, setLiquidationInjectionsSnapshot] = useState<Injection[]>([]);
   const [liquidationResultsSnapshot, setLiquidationResultsSnapshot] = useState<LotteryResult[]>([]);
+  const [liquidationSettlementsSnapshot, setLiquidationSettlementsSnapshot] = useState<Settlement[]>([]);
   const [isLiquidationDataLoading, setIsLiquidationDataLoading] = useState(false);
   const [selectedUserToLiquidate, setSelectedUserToLiquidate] = useState<string>('');
   const [selectedManageUserEmail, setSelectedManageUserEmail] = useState<string>('');
@@ -3114,7 +3143,7 @@ function App() {
       setSelectedUserToLiquidate(user.email.toLowerCase());
     }
 
-    toast.info(`Nuevo día operativo iniciado: ${businessDayKey}`);
+    toast.info(`Nuevo dÃ­a operativo iniciado: ${businessDayKey}`);
   }, [archiveDate, businessDayKey, historyDate, liquidationDate, user?.email, userProfile?.role]);
 
   // Inactivity timeout logic
@@ -3129,7 +3158,7 @@ function App() {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
         handleLogout();
-        toast.error('Sesión cerrada por inactividad');
+        toast.error('SesiÃ³n cerrada por inactividad');
       }, timeoutMs);
     };
 
@@ -3354,7 +3383,7 @@ function App() {
           setUser(null);
           setUserProfile(null);
           setLoading(false);
-          toast.info('Debe iniciar sesión nuevamente por cambio de día operativo.');
+          toast.info('Debe iniciar sesiÃ³n nuevamente por cambio de dÃ­a operativo.');
           return;
         }
       }
@@ -3428,7 +3457,7 @@ function App() {
       if (!isSessionValid()) {
         console.log('Session expired by operational day change. Signing out.');
         handleLogout();
-        toast.info('Su sesión expiró por cambio de día operativo. Inicie sesión nuevamente.');
+        toast.info('Su sesiÃ³n expirÃ³ por cambio de dÃ­a operativo. Inicie sesiÃ³n nuevamente.');
       }
     }, 60000); // Check every minute
     
@@ -3462,6 +3491,37 @@ function App() {
       return bTime - aTime;
     });
   }, []);
+
+  const getResultKey = useCallback((result: LotteryResult) => {
+    return result.id || `${result.lotteryId}|${result.date}|${result.firstPrize}|${result.secondPrize}|${result.thirdPrize}`;
+  }, []);
+
+  const sortResultsByRecency = useCallback((items: LotteryResult[]) => {
+    return [...items].sort((a, b) => {
+      if (a.date !== b.date) return b.date.localeCompare(a.date);
+      const aTime = a.timestamp?.toDate?.()?.getTime?.() ?? (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0);
+      const bTime = b.timestamp?.toDate?.()?.getTime?.() ?? (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0);
+      return bTime - aTime;
+    });
+  }, []);
+
+  const mergeResultsWithLiveFeed = useCallback((previous: LotteryResult[], liveResults: LotteryResult[]) => {
+    const liveKeys = new Set(liveResults.map(getResultKey));
+    const merged = new Map<string, LotteryResult>();
+
+    liveResults.forEach(item => {
+      merged.set(getResultKey(item), item);
+    });
+
+    previous.forEach(item => {
+      const key = getResultKey(item);
+      if (!liveKeys.has(key) && item.date !== businessDayKey) {
+        merged.set(key, item);
+      }
+    });
+
+    return sortResultsByRecency(Array.from(merged.values()));
+  }, [businessDayKey, getResultKey, sortResultsByRecency]);
 
   const getQuickOperationalDate = useCallback((offset: number) => {
     const d = getBusinessDate();
@@ -3554,7 +3614,26 @@ function App() {
     };
   }, [user?.uid, userProfile?.role]);
 
-  // 2. Today's Real-time Data
+  // 2. Stable Real-time Results Feed (operational day)
+  useEffect(() => {
+    if (!user?.uid || !userProfile?.role) return;
+
+    const qRes = query(
+      collection(db, 'results'),
+      where('date', '==', businessDayKey),
+      limit(300)
+    );
+    const unsubscribeResults = onSnapshot(qRes, (snapshot) => {
+      const docs = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as LotteryResult));
+      setResults(prev => mergeResultsWithLiveFeed(prev, docs));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'results');
+    });
+
+    return () => unsubscribeResults();
+  }, [businessDayKey, mergeResultsWithLiveFeed, user?.uid, userProfile?.role]);
+
+  // 3. Today's Real-time Data
   useEffect(() => {
     if (!user?.uid || !userProfile?.role) return;
     if (!needsRealtimeOperationalData) return;
@@ -3594,14 +3673,6 @@ function App() {
         handleFirestoreError(error, OperationType.GET, 'injections');
       });
 
-      const qRes = query(collection(db, 'results'), orderBy('timestamp', 'desc'), limit(50));
-      const unsubscribeResults = onSnapshot(qRes, (snapshot) => {
-        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LotteryResult));
-        setResults(docs);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'results');
-      });
-
       console.log("Fetching settlements for user:", user?.email?.toLowerCase());
       const qSettlements = query(
         collection(db, 'settlements'),
@@ -3620,7 +3691,6 @@ function App() {
       return () => {
         unsubscribeTickets();
         unsubscribeInjections();
-        unsubscribeResults();
         unsubscribeSettlements();
       };
     }
@@ -3684,15 +3754,6 @@ function App() {
       handleFirestoreError(error, OperationType.GET, 'injections');
     });
 
-    // Fetch results (limit to last 50)
-    const qRes = query(collection(db, 'results'), orderBy('timestamp', 'desc'), limit(50));
-    const unsubscribeResults = onSnapshot(qRes, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LotteryResult));
-      setResults(docs);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'results');
-    });
-
     // Fetch settlements (limit to last 100)
     console.log("Fetching settlements for user:", user?.email?.toLowerCase());
     const qSettlements = query(
@@ -3713,12 +3774,11 @@ function App() {
       unsubscribeTicketsById();
       unsubscribeTicketsByEmail();
       unsubscribeInjections();
-      unsubscribeResults();
       unsubscribeSettlements();
     };
   }, [businessDayKey, canAccessAllUsers, mergeTicketSnapshots, needsRealtimeOperationalData, user?.uid, user?.email, userProfile?.role, userProfile?.canLiquidate]);
 
-  // 3. History Data (Conditional on Date)
+  // 4. History Data (Conditional on Date)
   useEffect(() => {
     if (!user?.uid || !userProfile?.role || (activeTab !== 'history' && activeTab !== 'stats' && activeTab !== 'cierres')) return;
     let cancelled = false;
@@ -3936,13 +3996,13 @@ function App() {
 
   const addToCart = () => {
     if (!number || !quantity) {
-      toast.error('Ingrese número y cantidad');
+      toast.error('Ingrese nÃºmero y cantidad');
       return;
     }
 
     const qInt = parseInt(quantity);
     if (isNaN(qInt) || qInt <= 0) {
-      toast.error('Cantidad inválida');
+      toast.error('Cantidad invÃ¡lida');
       return;
     }
 
@@ -3961,11 +4021,11 @@ function App() {
     }
 
     if (betType === 'PL' && !globalSettings.palesEnabled) {
-      toast.error('Pales están desactivados');
+      toast.error('Pales estÃ¡n desactivados');
       return;
     }
     if (betType === 'BL' && !globalSettings.billetesEnabled) {
-      toast.error('Billetes están desactivados');
+      toast.error('Billetes estÃ¡n desactivados');
       return;
     }
 
@@ -3989,7 +4049,7 @@ function App() {
     }
     
     if (lotteriesToBuy.size === 0) {
-      toast.error('Seleccione al menos un sorteo válido');
+      toast.error('Seleccione al menos un sorteo vÃ¡lido');
       return;
     }
 
@@ -3999,7 +4059,7 @@ function App() {
     } else if (betType === 'BL') {
       calculatedAmount = parseFloat(plAmount); // Reusing plAmount for BL investment
       if (isNaN(calculatedAmount) || calculatedAmount < 0.10) {
-        toast.error('Inversión mínima para Billete (BL) es USD 0.10');
+        toast.error('InversiÃ³n mÃ­nima para Billete (BL) es USD 0.10');
         return;
       }
     } else {
@@ -4010,7 +4070,7 @@ function App() {
         return;
       }
       if (qInt > 5) {
-        toast.error('Máximo 5 combinaciones por número en Pale (PL)');
+        toast.error('MÃ¡ximo 5 combinaciones por nÃºmero en Pale (PL)');
         return;
       }
       calculatedAmount = qInt * costPerUnit;
@@ -4030,7 +4090,7 @@ function App() {
           .reduce((acc, b) => acc + b.quantity, 0);
 
         if (inCart + inTickets + qInt > 5) {
-          toast.error(`Excede límite de 5 combinaciones para #${number} en ${lot}`);
+          toast.error(`Excede lÃ­mite de 5 combinaciones para #${number} en ${lot}`);
           return;
         }
       }
@@ -4083,7 +4143,7 @@ function App() {
         .reduce((acc, b) => acc + b.quantity, 0);
 
       if (inCartOther + inTickets + newQty > 5) {
-        toast.error(`Excede límite de 5 combinaciones para #${num} en ${lot}`);
+        toast.error(`Excede lÃ­mite de 5 combinaciones para #${num} en ${lot}`);
         return;
       }
     }
@@ -4150,7 +4210,7 @@ function App() {
         return;
       }
       if (!isLotteryOpenForSales(lot)) {
-        toast.error(`El sorteo ${bet.lottery} ya está cerrado.`);
+        toast.error(`El sorteo ${bet.lottery} ya estÃ¡ cerrado.`);
         return;
       }
       const hasResult = results.some(r => cleanText(r.lotteryName) === cleanText(bet.lottery) && r.date === todayStr);
@@ -4187,7 +4247,7 @@ function App() {
         setCustomerName('');
         setShowCheckoutModal(false);
         setShowTicketModal({ ticket: updatedTicket });
-        toast.success('¡Venta actualizada con éxito!');
+        toast.success('Â¡Venta actualizada con Ã©xito!');
       } else {
         // Create new ticket
         const sequenceNumber = getDailySequence();
@@ -4227,7 +4287,7 @@ function App() {
         setCustomerName('');
         setShowCheckoutModal(false);
         setShowTicketModal({ ticket: newTicket });
-        toast.success('¡Venta realizada con éxito!');
+        toast.success('Â¡Venta realizada con Ã©xito!');
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'tickets');
@@ -4261,7 +4321,7 @@ function App() {
       let closeH = parseInt(timeParts[1]);
       let closeM = parseInt(timeParts[2]);
       
-      // Si la hora de cierre es antes de la 1 AM, también la ajustamos
+      // Si la hora de cierre es antes de la 1 AM, tambiÃ©n la ajustamos
       const adjustedCloseH = closeH < 1 ? closeH + 24 : closeH;
       const closeTimeVal = adjustedCloseH * 60 + closeM;
 
@@ -4281,14 +4341,14 @@ function App() {
     if (isNaN(ticketDate.getTime())) return true; // Treat invalid dates as closed
     const now = new Date();
     
-    // Definir el "día del sorteo" (que empieza a la 1 AM)
+    // Definir el "dÃ­a del sorteo" (que empieza a la 1 AM)
     const getLotteryDay = (date: Date) => {
       const d = new Date(date);
       d.setHours(d.getHours() - 1);
       return format(d, 'yyyy-MM-dd');
     };
 
-    // Si no es el mismo "día de sorteo", está cerrado
+    // Si no es el mismo "dÃ­a de sorteo", estÃ¡ cerrado
     if (getLotteryDay(ticketDate) !== getLotteryDay(now)) return true;
 
     // Verificar cada apuesta del ticket
@@ -4376,21 +4436,21 @@ function App() {
           const mult = globalSettings.pl12Multiplier || 1000;
           const p = (bet.amount || 0) * mult;
           totalPrize += p;
-          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r2, matchType: 'Palé' });
+          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r2, matchType: 'PalÃ©' });
         }
         // 1st and 3rd
         if ((n1 === r1 && n2 === r3) || (n1 === r3 && n2 === r1)) {
           const mult = globalSettings.pl13Multiplier || 1000;
           const p = (bet.amount || 0) * mult;
           totalPrize += p;
-          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r3, matchType: 'Palé' });
+          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r3, matchType: 'PalÃ©' });
         }
         // 2nd and 3rd
         if ((n1 === r2 && n2 === r3) || (n1 === r3 && n2 === r2)) {
           const mult = globalSettings.pl23Multiplier || 200;
           const p = (bet.amount || 0) * mult;
           totalPrize += p;
-          winningBets.push({ idx, prize: p, rank: 2, lotteryName: bet.lottery, winningNumber: r2 + '-' + r3, matchType: 'Palé' });
+          winningBets.push({ idx, prize: p, rank: 2, lotteryName: bet.lottery, winningNumber: r2 + '-' + r3, matchType: 'PalÃ©' });
         }
       } else if (bet.type === 'BL' && globalSettings.billetesEnabled) {
         // Billete: 4 digits. Check against first, second, and third prizes
@@ -4433,12 +4493,12 @@ function App() {
           if (betNum.slice(1, 4) === winningNum.slice(1, 4)) {
             const p = amount * prizeMults.last3;
             totalPrize += p;
-            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '3 Últimas' });
+            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '3 Ãºltimas' });
           } else if (betNum.slice(2, 4) === winningNum.slice(2, 4)) {
             // Last 2 digits
             const p = amount * prizeMults.last2;
             totalPrize += p;
-            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '2 Últimas' });
+            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '2 Ãºltimas' });
           }
         };
 
@@ -4649,18 +4709,92 @@ function App() {
     };
   }, [lotteries, getLotteryDayStats, historyDate, historyFilter, injections, userProfile]);
 
+  const getOperationalTimeSortValue = useCallback((time: string) => {
+    const [h, m] = time.split(':').map(Number);
+    let val = h * 60 + m;
+    if (val < 11 * 60) {
+      val += 24 * 60; // Keep early-morning draws after late-night draws
+    }
+    return val;
+  }, []);
+
   const sortedLotteries = [...lotteries].sort((a, b) => {
-    const getSortValue = (time: string) => {
-      const [h, m] = time.split(':').map(Number);
-      let val = h * 60 + m;
-      if (val < 11 * 60) {
-        val += 24 * 60; // Add 24 hours to make it later than 11 AM
-      }
-      return val;
-    };
-    return getSortValue(a.drawTime || '00:00') - getSortValue(b.drawTime || '00:00');
+    return getOperationalTimeSortValue(a.drawTime || '00:00') - getOperationalTimeSortValue(b.drawTime || '00:00');
   });
   const activeLotteries = sortedLotteries.filter(l => isLotteryOpenForSales(l));
+  const canManageResults = userProfile?.role === 'ceo' || userProfile?.role === 'admin';
+  const isCeoUser = userProfile?.role === 'ceo';
+  const sortedResults = useMemo(() => sortResultsByRecency(results), [results, sortResultsByRecency]);
+  const operationalResults = useMemo(() => {
+    return sortedResults.filter(result => result.date === businessDayKey);
+  }, [businessDayKey, sortedResults]);
+  const lotteryById = useMemo(() => {
+    return new Map(sortedLotteries.map(lottery => [lottery.id, lottery]));
+  }, [sortedLotteries]);
+  const visibleResults = useMemo(() => {
+    const orderedByDrawTime = [...operationalResults].sort((a, b) => {
+      const aTime = lotteryById.get(a.lotteryId)?.drawTime || '00:00';
+      const bTime = lotteryById.get(b.lotteryId)?.drawTime || '00:00';
+      const timeDiff = getOperationalTimeSortValue(aTime) - getOperationalTimeSortValue(bTime);
+      if (timeDiff !== 0) return timeDiff;
+      return (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0);
+    });
+    return canManageResults ? orderedByDrawTime.slice(0, 200) : orderedByDrawTime.slice(0, 80);
+  }, [canManageResults, getOperationalTimeSortValue, lotteryById, operationalResults]);
+
+  const takenResultLotteryIdsForDate = useMemo(() => {
+    const used = new Set<string>();
+    sortedResults.forEach(result => {
+      if (result.date === resultFormDate && result.lotteryId) {
+        used.add(result.lotteryId);
+      }
+    });
+    return used;
+  }, [resultFormDate, sortedResults]);
+
+  const availableResultLotteries = useMemo(() => {
+    return sortedLotteries.filter(lottery =>
+      (
+        lottery.active ||
+        lottery.id === editingResult?.lotteryId
+      ) &&
+      (
+        !takenResultLotteryIdsForDate.has(lottery.id) ||
+        lottery.id === editingResult?.lotteryId
+      )
+    );
+  }, [editingResult?.lotteryId, sortedLotteries, takenResultLotteryIdsForDate]);
+
+  const resultStatusMap = useMemo(() => {
+    const map = new Map<string, { sales: number; prizes: number; hasWinners: boolean }>();
+    if (!canManageResults || !user?.uid) return map;
+
+    const currentEmail = (user.email || '').toLowerCase();
+    const ownTickets = tickets.filter(ticket =>
+      (ticket.status === 'active' || ticket.status === 'winner') &&
+      (
+        ticket.sellerId === user.uid ||
+        (ticket.sellerEmail || '').toLowerCase() === currentEmail
+      )
+    );
+
+    visibleResults.forEach(result => {
+      let sales = 0;
+      let prizes = 0;
+
+      ownTickets.forEach(ticket => {
+        if (getTicketDateKey(ticket) !== result.date) return;
+        const matchingBets = (ticket.bets || []).filter(bet => cleanText(bet.lottery) === cleanText(result.lotteryName));
+        if (!matchingBets.length) return;
+        sales += matchingBets.reduce((sum, bet) => sum + (bet.amount || 0), 0);
+        prizes += getTicketPrizesFromSource(ticket, [result], result.lotteryName).totalPrize;
+      });
+
+      map.set(getResultKey(result), { sales, prizes, hasWinners: prizes > 0 });
+    });
+
+    return map;
+  }, [canManageResults, getResultKey, getTicketDateKey, getTicketPrizesFromSource, tickets, user?.email, user?.uid, visibleResults]);
 
   // Auto-select first active lottery if none selected or current is closed
   useEffect(() => {
@@ -4717,7 +4851,7 @@ function App() {
     setConfirmModal({
       show: true,
       title: 'Borrar Venta',
-      message: '¿Está seguro de borrar esta venta? Se eliminará permanentemente de la base de datos.',
+      message: 'Â¿EstÃ¡ seguro de borrar esta venta? Se eliminarÃ¡ permanentemente de la base de datos.',
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, 'tickets', id));
@@ -4737,7 +4871,7 @@ function App() {
       ? format(ticket.timestamp.toDate(), 'dd/MM/yyyy HH:mm') 
       : format(new Date(), 'dd/MM/yyyy HH:mm');
     
-    let message = `*CHANCE PRO - TICKET DE LOTERÍA*\n`;
+    let message = `*CHANCE PRO - TICKET DE LOTERÃA*\n`;
     message += `--------------------------------\n`;
     message += `*Ticket:* #${ticketId}\n`;
     message += `*Vendedor:* ${ticket.sellerCode || '---'}\n`;
@@ -4759,10 +4893,10 @@ function App() {
     message += `--------------------------------\n`;
     message += `*TOTAL:* $${totalAmount.toFixed(2)} USD\n`;
     message += `--------------------------------\n`;
-    message += `_¡Buena Suerte!_`;
+    message += `_Â¡Buena Suerte!_`;
 
     const shareData = {
-      title: 'Ticket de Lotería - Chance Pro',
+      title: 'Ticket de LoterÃ­a - Chance Pro',
       text: message
     };
 
@@ -4819,11 +4953,11 @@ function App() {
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error('Las contraseñas no coinciden');
+      toast.error('Las contraseÃ±as no coinciden');
       return;
     }
     if (newPassword.length < 6) {
-      toast.error('La contraseña debe tener al menos 6 caracteres');
+      toast.error('La contraseÃ±a debe tener al menos 6 caracteres');
       return;
     }
 
@@ -4831,7 +4965,7 @@ function App() {
     try {
       if (auth.currentUser) {
         await updatePassword(auth.currentUser, newPassword);
-        toast.success('Contraseña actualizada correctamente');
+        toast.success('ContraseÃ±a actualizada correctamente');
         setNewPassword('');
         setConfirmPassword('');
       } else {
@@ -4840,9 +4974,9 @@ function App() {
     } catch (error: any) {
       console.error('Error updating password:', error);
       if (error.code === 'auth/requires-recent-login') {
-        toast.error('Por seguridad, debe cerrar sesión e iniciarla de nuevo para cambiar su contraseña.');
+        toast.error('Por seguridad, debe cerrar sesiÃ³n e iniciarla de nuevo para cambiar su contraseÃ±a.');
       } else {
-        toast.error(`Error: ${error.message || 'No se pudo actualizar la contraseña'}`);
+        toast.error(`Error: ${error.message || 'No se pudo actualizar la contraseÃ±a'}`);
       }
     } finally {
       setIsUpdatingPassword(false);
@@ -4858,13 +4992,13 @@ function App() {
     }
 
      if (!canUpdatePersonalChancePrice) {
-      toast.error('Solo puedes cambiar este precio antes de tu primera venta del día o después de ser liquidado');
+      toast.error('Solo puedes cambiar este precio antes de tu primera venta del dÃ­a o despuÃ©s de ser liquidado');
       return;
     }
 
     const selectedConfig = globalSettings.chancePrices?.find(cp => Math.abs(cp.price - personalChancePrice) < 0.001);
     if (!selectedConfig) {
-      toast.error('Seleccione un precio de chance válido');
+      toast.error('Seleccione un precio de chance vÃ¡lido');
       return;
     }
 
@@ -4897,7 +5031,7 @@ function App() {
     if (userProfileData.role === 'admin') {
       const adminCount = users.filter(u => u.role === 'admin' && u.email !== authEmail).length;
       if (adminCount >= 5) {
-        toast.error('Límite máximo de 5 administradores alcanzado');
+        toast.error('LÃ­mite mÃ¡ximo de 5 administradores alcanzado');
         return;
       }
     }
@@ -4905,7 +5039,7 @@ function App() {
     if (userProfileData.role === 'ceo') {
       const ceoCount = users.filter(u => u.role === 'ceo' && u.email !== authEmail).length;
       if (ceoCount >= 3) {
-        toast.error('Límite máximo de 3 CEO alcanzado');
+        toast.error('LÃ­mite mÃ¡ximo de 3 CEO alcanzado');
         return;
       }
     }
@@ -4915,7 +5049,7 @@ function App() {
       if (!userProfileData.sellerId) {
         await runTransaction(db, async (transaction) => {
           const settingsDoc = await transaction.get(doc(db, 'settings', 'global'));
-          if (!settingsDoc.exists()) throw new Error("Configuración global no encontrada");
+          if (!settingsDoc.exists()) throw new Error("ConfiguraciÃ³n global no encontrada");
           
           const nextNum = settingsDoc.data().nextSellerNumber || 2;
           const rolePrefix = userProfileData.role === 'ceo' ? 'CEO' : userProfileData.role === 'admin' ? 'ADM' : 'VEND';
@@ -4932,7 +5066,7 @@ function App() {
 
       if (password) {
         if (!secondaryAuth) {
-          throw new Error('Servicio de autenticación secundaria no disponible');
+          throw new Error('Servicio de autenticaciÃ³n secundaria no disponible');
         }
         // Create user in Firebase Auth using secondary app to avoid signing out the CEO
         try {
@@ -4958,11 +5092,13 @@ function App() {
       }
 
       // Firestore does not support undefined values. Strip them out.
+      const normalizedFirestoreEmail = (userProfileData.email || authEmail).toLowerCase();
+      userProfileData.email = normalizedFirestoreEmail;
       const cleanData = Object.fromEntries(
         Object.entries(userProfileData).filter(([_, v]) => v !== undefined)
       );
 
-      await setDoc(doc(db, 'users', userProfileData.email), cleanData);
+      await setDoc(doc(db, 'users', normalizedFirestoreEmail), cleanData);
       
       if (editingUser?.email?.toLowerCase() === userProfile?.email?.toLowerCase()) {
         setUserProfile(cleanData as UserProfile);
@@ -4976,13 +5112,13 @@ function App() {
       if (error.code === 'auth/email-already-in-use') {
         toast.error('El usuario ya existe');
       } else if (error.code === 'auth/invalid-email') {
-        toast.error('El formato del usuario es inválido');
+        toast.error('El formato del usuario es invÃ¡lido');
       } else if (error.code === 'auth/weak-password') {
-        toast.error('La contraseña es muy débil');
+        toast.error('La contraseÃ±a es muy dÃ©bil');
       } else if (error.code === 'auth/admin-restricted-operation') {
-        toast.error('Error: El registro de usuarios está restringido. Por favor, habilite "Permitir que los usuarios se registren" en la consola de Firebase (Authentication > Settings > User actions).');
+        toast.error('Error: El registro de usuarios estÃ¡ restringido. Por favor, habilite "Permitir que los usuarios se registren" en la consola de Firebase (Authentication > Settings > User actions).');
       } else if (error.code === 'auth/operation-not-allowed') {
-        toast.error('El registro de usuarios no está habilitado en Firebase');
+        toast.error('El registro de usuarios no estÃ¡ habilitado en Firebase');
       } else {
         toast.error(`Error: ${error.message || 'No se pudo guardar el usuario'}`);
       }
@@ -4993,7 +5129,7 @@ function App() {
     setConfirmModal({
       show: true,
       title: 'Eliminar Usuario',
-      message: '¿Está seguro de eliminar este usuario? Perderá acceso al sistema.',
+      message: 'Â¿EstÃ¡ seguro de eliminar este usuario? PerderÃ¡ acceso al sistema.',
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, 'users', email));
@@ -5024,13 +5160,13 @@ function App() {
     setConfirmModal({
       show: true,
       title: 'Editar Venta',
-      message: 'Se cargarán las apuestas al carrito para modificarlas. El ticket original se mantendrá hasta que confirmes los cambios. ¿Continuar?',
+      message: 'Se cargarÃ¡n las apuestas al carrito para modificarlas. El ticket original se mantendrÃ¡ hasta que confirmes los cambios. Â¿Continuar?',
       onConfirm: () => {
         setCart(ticket.bets);
         setEditingTicketId(ticket.id);
         setCustomerName(ticket.customerName || '');
         setActiveTab('sales');
-        toast.info('Modo edición activado. Realice los cambios y genere el ticket para actualizar.');
+        toast.info('Modo ediciÃ³n activado. Realice los cambios y genere el ticket para actualizar.');
       }
     });
   };
@@ -5039,7 +5175,7 @@ function App() {
     setEditingTicketId(null);
     setCart([]);
     setCustomerName('');
-    toast.info('Edición cancelada');
+    toast.info('EdiciÃ³n cancelada');
   };
 
   const editCartItem = (idx: number) => {
@@ -5062,13 +5198,13 @@ function App() {
     try {
       if (editingLottery) {
         await updateDoc(doc(db, 'lotteries', editingLottery.id), lotteryData);
-        toast.success('Lotería actualizada');
+        toast.success('LoterÃ­a actualizada');
       } else {
         await addDoc(collection(db, 'lotteries'), {
           ...lotteryData,
           active: true
         });
-        toast.success('Lotería agregada');
+        toast.success('LoterÃ­a agregada');
       }
       setShowLotteryModal(false);
       setEditingLottery(null);
@@ -5080,7 +5216,7 @@ function App() {
   const toggleLotteryActive = async (lottery: Lottery) => {
     try {
       await updateDoc(doc(db, 'lotteries', lottery.id), { active: !lottery.active });
-      toast.success(`Lotería ${lottery.active ? 'pausada' : 'activada'}`);
+      toast.success(`LoterÃ­a ${lottery.active ? 'pausada' : 'activada'}`);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `lotteries/${lottery.id}`);
     }
@@ -5089,12 +5225,12 @@ function App() {
   const deleteLottery = async (id: string) => {
     setConfirmModal({
       show: true,
-      title: 'Eliminar Lotería',
-      message: '¿Está seguro de eliminar esta lotería? Esta acción no se puede deshacer.',
+      title: 'Eliminar LoterÃ­a',
+      message: 'Â¿EstÃ¡ seguro de eliminar esta loterÃ­a? Esta acciÃ³n no se puede deshacer.',
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, 'lotteries', id));
-          toast.success('Lotería eliminada');
+          toast.success('LoterÃ­a eliminada');
         } catch (error) {
           handleFirestoreError(error, OperationType.DELETE, `lotteries/${id}`);
         }
@@ -5102,7 +5238,104 @@ function App() {
     });
   };
 
+  const resetResultForm = useCallback(() => {
+    setResultFormLotteryId('');
+    setResultFormFirstPrize('');
+    setResultFormSecondPrize('');
+    setResultFormThirdPrize('');
+  }, []);
+
+  const cancelResultEdition = useCallback(() => {
+    setEditingResult(null);
+    setResultFormDate(businessDayKey);
+    resetResultForm();
+  }, [businessDayKey, resetResultForm]);
+
+  useEffect(() => {
+    if (!editingResult) return;
+    setResultFormLotteryId(editingResult.lotteryId);
+    setResultFormDate(isCeoUser ? editingResult.date : businessDayKey);
+    setResultFormFirstPrize(editingResult.firstPrize);
+    setResultFormSecondPrize(editingResult.secondPrize);
+    setResultFormThirdPrize(editingResult.thirdPrize);
+  }, [businessDayKey, editingResult, isCeoUser]);
+
+  useEffect(() => {
+    if (!canManageResults) return;
+    if (!isCeoUser && resultFormDate !== businessDayKey) {
+      setResultFormDate(businessDayKey);
+    }
+  }, [businessDayKey, canManageResults, isCeoUser, resultFormDate]);
+
+  const handleCreateResultFromForm = useCallback(async () => {
+    if (!canManageResults) {
+      toast.error('No tiene permisos para ingresar resultados');
+      return;
+    }
+    if (!resultFormLotteryId || !resultFormDate || !resultFormFirstPrize || !resultFormSecondPrize || !resultFormThirdPrize) {
+      toast.error('Complete todos los campos del resultado');
+      return;
+    }
+
+    if (!isCeoUser && resultFormDate !== businessDayKey) {
+      toast.error('Solo el CEO puede trabajar resultados fuera de la fecha operativa');
+      setResultFormDate(businessDayKey);
+      return;
+    }
+
+    const selectedLottery = sortedLotteries.find(lottery => lottery.id === resultFormLotteryId);
+    if (!selectedLottery) {
+      toast.error('Seleccione un sorteo vÃ¡lido');
+      return;
+    }
+
+    const alreadyExists = results.some(result =>
+      result.lotteryId === resultFormLotteryId &&
+      result.date === resultFormDate &&
+      result.id !== editingResult?.id
+    );
+    if (alreadyExists) {
+      toast.error('Ese sorteo ya tiene resultado para la fecha seleccionada');
+      return;
+    }
+
+    const saved = await saveResult({
+      lotteryId: resultFormLotteryId,
+      lotteryName: cleanText(selectedLottery.name),
+      date: resultFormDate,
+      firstPrize: resultFormFirstPrize,
+      secondPrize: resultFormSecondPrize,
+      thirdPrize: resultFormThirdPrize
+    });
+
+    if (saved) {
+      setResultFormDate(businessDayKey);
+      resetResultForm();
+      setEditingResult(null);
+    }
+  }, [businessDayKey, canManageResults, editingResult?.id, isCeoUser, resetResultForm, resultFormDate, resultFormFirstPrize, resultFormLotteryId, resultFormSecondPrize, resultFormThirdPrize, results, sortedLotteries]);
+
   const saveResult = async (resultData: Partial<LotteryResult>) => {
+    if (!canManageResults) {
+      toast.error('No tiene permisos para guardar resultados');
+      return false;
+    }
+
+    if (!isCeoUser && resultData.date !== businessDayKey) {
+      toast.error('Solo el CEO puede guardar resultados fuera de la fecha operativa');
+      return false;
+    }
+
+    const duplicate = results.some(result =>
+      result.lotteryId === resultData.lotteryId &&
+      result.date === resultData.date &&
+      result.id !== editingResult?.id
+    );
+    if (duplicate) {
+      toast.error('Ese sorteo ya tiene resultado para esa fecha');
+      return false;
+    }
+
     try {
       if (editingResult) {
         await updateDoc(doc(db, 'results', editingResult.id), {
@@ -5117,18 +5350,23 @@ function App() {
         });
         toast.success('Resultado ingresado');
       }
-      setShowResultModal(false);
       setEditingResult(null);
+      return true;
     } catch (error) {
       handleFirestoreError(error, editingResult ? OperationType.UPDATE : OperationType.CREATE, 'results');
+      return false;
     }
   };
 
   const deleteResult = async (id: string) => {
+    if (!canManageResults) {
+      toast.error('No tiene permisos para eliminar resultados');
+      return;
+    }
     setConfirmModal({
       show: true,
       title: 'Eliminar Resultado',
-      message: '¿Está seguro de eliminar este resultado? Esta acción no se puede deshacer.',
+      message: 'Â¿EstÃ¡ seguro de eliminar este resultado? Esta acciÃ³n no se puede deshacer.',
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, 'results', id));
@@ -5140,13 +5378,44 @@ function App() {
     });
   };
 
+  const selectedLiquidationSettlement = useMemo(() => {
+    if (!selectedUserToLiquidate || !liquidationDate) return null;
+    const sourceSettlements = liquidationDate === businessDayKey ? settlements : liquidationSettlementsSnapshot;
+    const matches = sourceSettlements.filter(settlement =>
+      (settlement.userEmail || '').toLowerCase() === selectedUserToLiquidate.toLowerCase() &&
+      settlement.date === liquidationDate
+    );
+    if (matches.length === 0) return null;
+    return matches.sort((a, b) => {
+      const aTime = a.timestamp?.toDate?.()?.getTime?.() ?? (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0);
+      const bTime = b.timestamp?.toDate?.()?.getTime?.() ?? (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0);
+      return bTime - aTime;
+    })[0];
+  }, [businessDayKey, liquidationDate, liquidationSettlementsSnapshot, selectedUserToLiquidate, settlements]);
+
+  useEffect(() => {
+    if (!selectedUserToLiquidate || !liquidationDate) {
+      setAmountPaid('');
+      return;
+    }
+    if (selectedLiquidationSettlement) {
+      setAmountPaid(String(selectedLiquidationSettlement.amountPaid ?? 0));
+      return;
+    }
+    setAmountPaid('');
+  }, [liquidationDate, selectedLiquidationSettlement?.amountPaid, selectedLiquidationSettlement?.id, selectedUserToLiquidate]);
+
   const handleLiquidate = async () => {
     if (!selectedUserToLiquidate) return;
+    if (!userProfile || !['ceo', 'admin'].includes(userProfile.role)) {
+      alert('No tienes permisos para liquidar');
+      return;
+    }
     if (liquidationDate !== businessDayKey && isLiquidationDataLoading) {
       toast.error('Espera a que termine la carga de datos históricos');
       return;
     }
-    
+
     const userToLiquidate = users.find(u => u.email === selectedUserToLiquidate);
     if (!userToLiquidate) return;
 
@@ -5163,43 +5432,173 @@ function App() {
       targetDate: liquidationDate,
       prizeResolver
     });
-    const unliquidatedTickets = financialSummary.tickets.filter(t => !t.liquidated);
-    const unliquidatedInjections = financialSummary.injections.filter(i => !i.liquidated);
 
-    const totalSales = unliquidatedTickets.reduce((sum, t) => sum + t.totalAmount, 0);
-    const totalCommissions = unliquidatedTickets.reduce((sum, t) => sum + (t.totalAmount * (t.commissionRate / 100)), 0);
-    const totalPrizes = unliquidatedTickets.reduce((sum, t) => sum + prizeResolver(t).totalPrize, 0);
-    const totalInjections = unliquidatedInjections.reduce((sum, i) => sum + i.amount, 0);
-    
+    const ticketsToLiquidate = financialSummary.tickets.filter(ticket =>
+      ticket.status === 'active' && !ticket.settlementId && !ticket.liquidated
+    );
+    const injectionsToLiquidate = financialSummary.injections.filter(injection =>
+      !injection.settlementId && !injection.liquidated
+    );
+
+    const totalSales = financialSummary.totalSales;
+    const totalCommissions = financialSummary.totalCommissions;
+    const totalPrizes = financialSummary.totalPrizes;
+    const totalInjections = financialSummary.totalInjections;
     const netProfit = totalSales - totalCommissions - totalPrizes + totalInjections;
+
     const paid = Number(amountPaid) || 0;
-    const previousDebt = userToLiquidate.currentDebt || 0;
+    const currentDebt = userToLiquidate.currentDebt || 0;
+    const existingDebtImpact = selectedLiquidationSettlement?.debtAdded || 0;
+    const previousDebt = currentDebt - existingDebtImpact;
     const debtAdded = netProfit - paid;
     const newTotalDebt = previousDebt + debtAdded;
+    const actionLabel = selectedLiquidationSettlement ? 'actualizar' : 'liquidar';
 
     setConfirmModal({
       show: true,
-      title: 'Confirmar Liquidación Diaria',
-      message: `¿Está seguro de liquidar a ${userToLiquidate.name} para el día ${liquidationDate}? \n\nUtilidad Neta: USD ${netProfit.toFixed(2)}\nMonto Entregado: USD ${paid.toFixed(2)}\nDeuda Añadida: USD ${debtAdded.toFixed(2)}\nNueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
+      title: selectedLiquidationSettlement ? 'Actualizar Liquidación' : 'Confirmar Liquidación Diaria',
+      message: `¿Está seguro de ${actionLabel} a ${userToLiquidate.name} para el día ${liquidationDate}? \
+\
+Utilidad Neta: USD ${netProfit.toFixed(2)}\
+Monto Entregado: USD ${paid.toFixed(2)}\
+Deuda Añadida: USD ${debtAdded.toFixed(2)}\
+Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
       onConfirm: async () => {
         try {
-          const settlementRef = doc(collection(db, 'settlements'));
+          const normalizedUserEmail = userToLiquidate.email.toLowerCase();
+          let existingSettlement = selectedLiquidationSettlement;
+
+          if (!existingSettlement) {
+            const settlementQueryByLower = await getDocs(query(
+              collection(db, 'settlements'),
+              where('userEmail', '==', normalizedUserEmail),
+              where('date', '==', liquidationDate),
+              limit(5)
+            ));
+            const lowerMatches = settlementQueryByLower.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Settlement));
+            if (lowerMatches.length > 1) {
+              console.warn('Se encontraron múltiples settlements para el mismo usuario+fecha. Se actualizará el más reciente.', lowerMatches.map(item => item.id));
+            }
+            existingSettlement = lowerMatches.sort((a, b) => {
+              const aTime = a.timestamp?.toDate?.()?.getTime?.() ?? (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0);
+              const bTime = b.timestamp?.toDate?.()?.getTime?.() ?? (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0);
+              return bTime - aTime;
+            })[0] || null;
+          }
+
+          const currentDebtValue = userToLiquidate.currentDebt || 0;
+          const baselineDebt = currentDebtValue - (existingSettlement?.debtAdded || 0);
+          const finalDebtAdded = netProfit - paid;
+          const finalNewTotalDebt = baselineDebt + finalDebtAdded;
+
+          const settlementPayload = {
+            userEmail: normalizedUserEmail,
+            sellerEmail: normalizedUserEmail,
+            sellerId: userToLiquidate.sellerId || null,
+            date: liquidationDate,
+            totalSales,
+            totalCommissions,
+            totalPrizes,
+            totalInjections,
+            netProfit,
+            net: netProfit,
+            amountPaid: paid,
+            debtAdded: finalDebtAdded,
+            previousDebt: baselineDebt,
+            newTotalDebt: finalNewTotalDebt,
+            liquidatedBy: userProfile?.email,
+            updatedAt: serverTimestamp()
+          };
+
+          let settlementId = existingSettlement?.id || '';
+          if (existingSettlement) {
+            await updateDoc(doc(db, 'settlements', existingSettlement.id), settlementPayload);
+          } else {
+            const settlementRef = await addDoc(collection(db, 'settlements'), {
+              ...settlementPayload,
+              timestamp: serverTimestamp()
+            });
+            settlementId = settlementRef.id;
+          }
+
+          const effectiveSettlementId = settlementId || existingSettlement?.id || '';
+          console.log('Settlement guardado:', effectiveSettlementId);
+          console.log('Tickets a liquidar (solo día actual):', ticketsToLiquidate.length);
+
           const userRef = doc(db, 'users', userToLiquidate.email);
-          
-          const allUpdates = [
-            ...unliquidatedTickets.map(t => ({ ref: doc(db, 'tickets', t.id), data: { liquidated: true, settlementId: settlementRef.id } })),
-            ...unliquidatedInjections.map(i => ({ ref: doc(db, 'injections', i.id), data: { liquidated: true, settlementId: settlementRef.id } }))
-          ];
+          await updateDoc(userRef, { currentDebt: finalNewTotalDebt });
 
-          // We need to reserve 2 spots for settlement and user update in the first batch
-          const firstBatchUpdates = allUpdates.slice(0, 498);
-          const remainingUpdates = allUpdates.slice(498);
+          const secondaryWarnings: string[] = [];
 
-          const firstBatch = writeBatch(db);
-          
-          // 1. Create settlement record
-          firstBatch.set(settlementRef, {
-            userEmail: userToLiquidate.email,
+          if (isCurrentOperationalDate && effectiveSettlementId) {
+            if (ticketsToLiquidate.length > 0) {
+              try {
+                for (let i = 0; i < ticketsToLiquidate.length; i += 450) {
+                  const chunk = ticketsToLiquidate.slice(i, i + 450);
+                  const batch = writeBatch(db);
+                  chunk.forEach(ticket => {
+                    if (ticket.status !== 'active') return;
+                    if (ticket.settlementId || ticket.liquidated) return;
+                    batch.update(doc(db, 'tickets', ticket.id), {
+                      status: 'liquidated',
+                      liquidated: true,
+                      settlementId: effectiveSettlementId
+                    });
+                  });
+                  await batch.commit();
+                }
+              } catch (ticketUpdateError) {
+                console.error('Error actualizando tickets:', ticketUpdateError);
+                secondaryWarnings.push('tickets');
+              }
+            }
+
+            if (injectionsToLiquidate.length > 0) {
+              try {
+                for (let i = 0; i < injectionsToLiquidate.length; i += 500) {
+                  const chunk = injectionsToLiquidate.slice(i, i + 500);
+                  const batch = writeBatch(db);
+                  chunk.forEach(injection => {
+                    if (injection.settlementId || injection.liquidated) return;
+                    batch.update(doc(db, 'injections', injection.id), {
+                      liquidated: true,
+                      settlementId: effectiveSettlementId
+                    });
+                  });
+                  await batch.commit();
+                }
+              } catch (injectionUpdateError) {
+                console.error('Error actualizando inyecciones:', injectionUpdateError);
+                secondaryWarnings.push('inyecciones');
+              }
+            }
+          }
+
+          const liquidatedTicketIds = new Set(ticketsToLiquidate.map(ticket => ticket.id));
+          const liquidatedInjectionIds = new Set(injectionsToLiquidate.map(injection => injection.id));
+
+          if (isCurrentOperationalDate && effectiveSettlementId) {
+            setTickets(prev => prev.map(ticket => (
+              liquidatedTicketIds.has(ticket.id)
+                ? { ...ticket, liquidated: true, settlementId: effectiveSettlementId, status: 'liquidated' as any }
+                : ticket
+            )));
+            setInjections(prev => prev.map(injection => (
+              liquidatedInjectionIds.has(injection.id)
+                ? { ...injection, liquidated: true, settlementId: effectiveSettlementId }
+                : injection
+            )));
+          }
+
+          setUsers(prev => prev.map(userItem => (
+            userItem.email === userToLiquidate.email
+              ? { ...userItem, currentDebt: finalNewTotalDebt }
+              : userItem
+          )));
+
+          const settlementStateItem: Settlement = {
+            id: effectiveSettlementId,
+            userEmail: normalizedUserEmail,
             date: liquidationDate,
             totalSales,
             totalCommissions,
@@ -5207,43 +5606,41 @@ function App() {
             totalInjections,
             netProfit,
             amountPaid: paid,
-            debtAdded,
-            previousDebt,
-            newTotalDebt,
-            liquidatedBy: userProfile?.email,
-            timestamp: serverTimestamp()
-          });
+            debtAdded: finalDebtAdded,
+            previousDebt: baselineDebt,
+            newTotalDebt: finalNewTotalDebt,
+            liquidatedBy: userProfile?.email || '',
+            timestamp: existingSettlement?.timestamp || (new Date() as any)
+          };
 
-          // 2. Update user's current debt
-          firstBatch.update(userRef, { currentDebt: newTotalDebt });
+          const upsertSettlement = (list: Settlement[]) => {
+            const idx = list.findIndex(item => item.id === settlementStateItem.id);
+            if (idx === -1) return [settlementStateItem, ...list];
+            const next = [...list];
+            next[idx] = settlementStateItem;
+            return next;
+          };
 
-          // 3. Mark first chunk of tickets/injections as liquidated
-          firstBatchUpdates.forEach(update => {
-            firstBatch.update(update.ref, update.data);
-          });
-
-          await firstBatch.commit();
-
-          // 4. Process remaining chunks
-          for (let i = 0; i < remainingUpdates.length; i += 500) {
-            const batch = writeBatch(db);
-            const chunk = remainingUpdates.slice(i, i + 500);
-            chunk.forEach(update => {
-              batch.update(update.ref, update.data);
-            });
-            await batch.commit();
+          setSettlements(prev => upsertSettlement(prev));
+          if (!isCurrentOperationalDate) {
+            setLiquidationSettlementsSnapshot(prev => upsertSettlement(prev));
           }
 
-          toast.success('Liquidación completada correctamente');
-          setSelectedUserToLiquidate('');
-          setAmountPaid('');
+          if (secondaryWarnings.length > 0 && isCurrentOperationalDate) {
+            toast.warning(`Liquidación guardada. Hubo incidencias secundarias en: ${secondaryWarnings.join(', ')}`);
+          } else {
+            toast.success(existingSettlement ? 'Liquidación actualizada correctamente' : 'Liquidación guardada correctamente');
+          }
+
+          setAmountPaid(String(paid));
         } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, 'settlements (batch)');
+          console.error('ERROR LIQUIDACION:', error);
+          alert('Error al guardar la liquidación. Revisa conexión o permisos.');
+          handleFirestoreError(error, OperationType.WRITE, 'settlements');
         }
       }
     });
   };
-
   const generateConsolidatedReport = async () => {
     if (!isPrimaryCeoUser) {
       toast.error('Solo el CEO propietario puede generar este reporte');
@@ -5434,57 +5831,87 @@ function App() {
   };
 
   const handleDeleteAllSalesData = () => {
-    if (userProfile?.role !== 'ceo') return;
-    
+    if (!userProfile || !['ceo', 'admin'].includes(userProfile.role)) {
+      alert('No tienes permisos para ejecutar limpieza operativa');
+      return;
+    }
+
     setConfirmModal({
       show: true,
-      title: 'Borrar TODOS los Datos de Ventas y Resultados',
-      message: '¡ADVERTENCIA CRÍTICA! ¿Está absolutamente seguro de borrar TODOS los tickets de venta, datos de inyecciones, resultados de loterías y liquidaciones? Esta acción es IRREVERSIBLE y eliminará todo el historial financiero y de sorteos de la base de datos (Firestore). Las deudas de los usuarios se reiniciarán a 0.',
+      title: 'Archivar y Limpiar DÃ­a Operativo',
+      message: 'Se archivarÃ¡n los datos del dÃ­a operativo actual y luego se limpiarÃ¡n tickets, resultados e inyecciones operativas. Â¿Deseas continuar?',
       onConfirm: async () => {
         try {
-          const ticketsSnapshot = await getDocs(collection(db, 'tickets'));
-          const injectionsSnapshot = await getDocs(collection(db, 'injections'));
-          const resultsSnapshot = await getDocs(collection(db, 'results'));
-          const settlementsSnapshot = await getDocs(collection(db, 'settlements'));
-          const usersSnapshot = await getDocs(collection(db, 'users'));
-          
-          const docsToDelete = [
-            ...ticketsSnapshot.docs, 
-            ...injectionsSnapshot.docs, 
-            ...resultsSnapshot.docs, 
-            ...settlementsSnapshot.docs
-          ];
-          
-          const usersToReset = usersSnapshot.docs;
-          
-          if (docsToDelete.length === 0 && usersToReset.length === 0) {
-            toast.info('No hay datos para eliminar o reiniciar.');
+          const { start, end } = getBusinessDayRange(businessDayKey);
+
+          const [ticketsSnapshot, injectionsSnapshot, resultsSnapshot, settlementsSnapshot] = await Promise.all([
+            getDocs(query(
+              collection(db, 'tickets'),
+              where('timestamp', '>=', start),
+              where('timestamp', '<', end)
+            )),
+            getDocs(query(
+              collection(db, 'injections'),
+              where('date', '==', businessDayKey)
+            )),
+            getDocs(query(
+              collection(db, 'results'),
+              where('date', '==', businessDayKey)
+            )),
+            getDocs(query(
+              collection(db, 'settlements'),
+              where('date', '==', businessDayKey)
+            ))
+          ]);
+
+          const ticketsToArchive = ticketsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          const injectionsToArchive = injectionsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          const resultsToArchive = resultsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          const settlementsToArchive = settlementsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+          await setDoc(doc(db, 'daily_archives', businessDayKey), {
+            date: businessDayKey,
+            tickets: ticketsToArchive,
+            results: resultsToArchive,
+            settlements: settlementsToArchive,
+            injections: injectionsToArchive,
+            createdAt: serverTimestamp()
+          });
+
+          try {
+            const docsToDelete = [
+              ...ticketsSnapshot.docs,
+              ...resultsSnapshot.docs,
+              ...injectionsSnapshot.docs
+            ];
+
+            for (let i = 0; i < docsToDelete.length; i += 450) {
+              const batch = writeBatch(db);
+              const chunk = docsToDelete.slice(i, i + 450);
+              chunk.forEach(docSnap => batch.delete(docSnap.ref));
+              await batch.commit();
+            }
+          } catch (cleanupError) {
+            console.error('Error en limpieza operativa:', cleanupError);
+            toast.error('Archivo diario creado, pero fall? la limpieza operativa');
             return;
           }
 
-          // Combine all operations
-          const allOps = [
-            ...docsToDelete.map(d => ({ type: 'delete' as const, ref: d.ref })),
-            ...usersToReset.map(d => ({ type: 'update' as const, ref: d.ref, data: { currentDebt: 0 } }))
-          ];
+          setTickets([]);
+          setResults([]);
+          setInjections([]);
+          setHistoryTickets([]);
+          setHistoryResults([]);
+          setHistoryInjections([]);
+          setLiquidationTicketsSnapshot([]);
+          setLiquidationResultsSnapshot([]);
+          setLiquidationInjectionsSnapshot([]);
+          setLiquidationSettlementsSnapshot([]);
 
-          // Chunk into batches of 500 (Firestore limit)
-          for (let i = 0; i < allOps.length; i += 500) {
-            const batch = writeBatch(db);
-            const chunk = allOps.slice(i, i + 500);
-            chunk.forEach(op => {
-              if (op.type === 'delete') {
-                batch.delete(op.ref);
-              } else {
-                batch.update(op.ref, op.data);
-              }
-            });
-            await batch.commit();
-          }
-          
-          toast.success(`Se han eliminado ${docsToDelete.length} registros y reiniciado ${usersToReset.length} usuarios de la base de datos.`);
+          toast.success('Archivo diario creado y limpieza operativa completada');
         } catch (error) {
-          handleFirestoreError(error, OperationType.DELETE, 'tickets/injections/results/settlements/users (batch)');
+          console.error('Error archivando datos operativos:', error);
+          toast.error('No se pudo crear el archivo diario. No se realiz? limpieza.');
         }
       }
     });
@@ -5493,7 +5920,7 @@ function App() {
   const applyLotteryToCart = (lotteryName: string) => {
     if (!lotteryName) return;
     setCart(cart.map(item => ({ ...item, lottery: lotteryName })));
-    toast.success(`Lotería ${cleanText(lotteryName)} aplicada a todo el pedido`);
+    toast.success(`LoterÃ­a ${cleanText(lotteryName)} aplicada a todo el pedido`);
   };
 
   const handleDownloadCierre = async () => {
@@ -5554,7 +5981,7 @@ function App() {
           toast.dismiss(toastId);
           await Share.share({
             title: `Cierre ${cleanText(cierreLottery)}`,
-            text: `Reporte de cierre de ${cleanText(cierreLottery)} para el día ${historyDate}`,
+            text: `Reporte de cierre de ${cleanText(cierreLottery)} para el dÃ­a ${historyDate}`,
             files: [savedFile.uri],
             dialogTitle: 'Compartir Cierre'
           });
@@ -5801,6 +6228,33 @@ function App() {
   const fetchUserOperationalDataByDate = useCallback(async (targetDate: string, userEmail: string) => {
     const normalizedEmail = userEmail.toLowerCase().trim();
     const { start, end } = getBusinessDayRange(targetDate);
+    const archiveSnap = await getDoc(doc(db, 'daily_archives', targetDate));
+    if (archiveSnap.exists()) {
+      const archive = archiveSnap.data() as {
+        tickets?: LotteryTicket[];
+        injections?: Injection[];
+        settlements?: Settlement[];
+        results?: LotteryResult[];
+      };
+
+      const archivedTickets = (archive.tickets || []).filter(ticket =>
+        (ticket.sellerEmail || '').toLowerCase() === normalizedEmail
+      );
+      const archivedInjections = (archive.injections || []).filter(injection =>
+        (injection.userEmail || '').toLowerCase() === normalizedEmail
+      );
+      const archivedSettlements = (archive.settlements || []).filter(settlement =>
+        (settlement.userEmail || '').toLowerCase() === normalizedEmail &&
+        settlement.date === targetDate
+      );
+
+      return {
+        tickets: archivedTickets,
+        injections: archivedInjections,
+        settlements: archivedSettlements,
+        results: archive.results || []
+      };
+    }
 
     const [ticketsByEmailSnap, injectionsSnap, settlementsSnap, resultsSnap] = await Promise.all([
       getDocs(query(
@@ -5829,13 +6283,11 @@ function App() {
       ))
     ]);
 
-    const loadedResults = resultsSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as LotteryResult));
-
     return {
       tickets: mergeTicketSnapshots(ticketsByEmailSnap),
       injections: injectionsSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Injection)),
       settlements: settlementsSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Settlement)),
-      results: loadedResults
+      results: resultsSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as LotteryResult))
     };
   }, [getBusinessDayRange, mergeTicketSnapshots]);
 
@@ -5877,6 +6329,7 @@ function App() {
       setLiquidationTicketsSnapshot([]);
       setLiquidationInjectionsSnapshot([]);
       setLiquidationResultsSnapshot([]);
+      setLiquidationSettlementsSnapshot([]);
       return;
     }
 
@@ -5884,6 +6337,7 @@ function App() {
       setLiquidationTicketsSnapshot([]);
       setLiquidationInjectionsSnapshot([]);
       setLiquidationResultsSnapshot([]);
+      setLiquidationSettlementsSnapshot([]);
       return;
     }
 
@@ -5896,6 +6350,7 @@ function App() {
         setLiquidationTicketsSnapshot(dayData.tickets);
         setLiquidationInjectionsSnapshot(dayData.injections);
         setLiquidationResultsSnapshot(dayData.results);
+        setLiquidationSettlementsSnapshot(dayData.settlements);
       })
       .catch(error => {
         if (cancelled) return;
@@ -6059,14 +6514,6 @@ function App() {
         globalSettings={globalSettings}
       />
 
-      <ResultModal 
-        show={showResultModal}
-        result={editingResult}
-        lotteries={sortedLotteries}
-        onSave={saveResult}
-        onClose={() => { setShowResultModal(false); setEditingResult(null); }}
-      />
-
       <UserModal
         show={showUserModal}
         userProfile={editingUser}
@@ -6135,14 +6582,14 @@ function App() {
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, role: ['ceo', 'admin', 'seller'] },
             { id: 'sales', label: 'Nueva Venta', icon: Plus },
             { id: 'history', label: 'Resumen de ventas', icon: History },
-            { id: 'stats', label: 'Estadísticas', icon: BarChart3, role: ['ceo', 'admin', 'seller'] },
+            { id: 'stats', label: 'EstadÃ­sticas', icon: BarChart3, role: ['ceo', 'admin', 'seller'] },
             { id: 'cierres', label: 'Cierres', icon: Printer, role: ['ceo', 'admin', 'seller'] },
-            { id: 'results', label: 'Resultados', icon: CheckCircle2, role: ['ceo', 'admin'] },
+            { id: 'results', label: 'Resultados', icon: CheckCircle2, role: ['ceo', 'admin', 'seller'] },
             { id: 'users', label: 'Usuarios', icon: Users, role: ['ceo', 'canLiquidate'] },
             { id: 'archivo', label: 'Archivo', icon: Archive, role: ['ceo', 'admin'] },
-            { id: 'admin', label: 'Loterías', icon: ShieldCheck, role: ['ceo'] },
+            { id: 'admin', label: 'LoterÃ­as', icon: ShieldCheck, role: ['ceo'] },
             { id: 'liquidaciones', label: 'Liquidaciones', icon: DollarSign, role: ['ceo', 'admin', 'seller'], permission: 'canLiquidate' },
-            { id: 'config', label: 'Configuración', icon: Settings, role: ['ceo', 'admin', 'seller'] }
+            { id: 'config', label: 'ConfiguraciÃ³n', icon: Settings, role: ['ceo', 'admin', 'seller'] }
           ].filter(item => {
             if (!item.role) return true;
             if (item.permission === 'canLiquidate') {
@@ -6175,7 +6622,7 @@ function App() {
             {isSidebarOpen && (
               <div className="flex flex-col">
                 <span className="text-[11px] font-black uppercase tracking-widest leading-none">
-                  {isOnline ? 'Sincronizado' : 'Sin Conexión'}
+                  {isOnline ? 'Sincronizado' : 'Sin ConexiÃ³n'}
                 </span>
                 <span className="text-[9px] font-mono opacity-60 uppercase">
                   {isOnline ? 'Nube Activa' : 'Modo Local'}
@@ -6194,7 +6641,7 @@ function App() {
       </motion.aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative min-w-0">
         {/* Top Header */}
         <header className="h-16 glass border-b border-border px-3 flex items-center justify-between shrink-0 gap-2">
           <button 
@@ -6240,7 +6687,7 @@ function App() {
         </header>
 
         {/* Scrollable Area */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 custom-scrollbar min-w-0">
           <AnimatePresence mode="wait">
             {activeTab === 'dashboard' && (
               <motion.div
@@ -6253,7 +6700,7 @@ function App() {
                   {/* Block 1 (2 columns) */}
                   <div className="grid grid-cols-2 gap-2">
                     <div className="glass-card p-3 border-white/5 bg-white/[0.02]">
-                      <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-0.5">Ventas del día</p>
+                      <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-0.5">Ventas del dÃ­a</p>
                       <p className="text-lg font-medium text-white">${todayStats.sales.toFixed(2)}</p>
                     </div>
                     <div className="glass-card p-3 border-white/5 bg-white/[0.02]">
@@ -6292,7 +6739,7 @@ function App() {
                           <div key={inj.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
                             <div className="flex flex-col">
                               <span className="text-[10px] font-black text-white uppercase tracking-tighter">
-                                Inyección Recibida
+                                InyecciÃ³n Recibida
                               </span>
                               <span className="text-[9px] text-muted-foreground font-mono">
                                 {inj.timestamp?.toDate 
@@ -6347,7 +6794,7 @@ function App() {
                                     className="fixed inset-0 z-40" 
                                     onClick={() => setShowMultiSelect(false)}
                                   />
-                                  <div className="absolute top-full left-0 mt-2 w-full min-w-[240px] bg-background border border-border rounded-xl shadow-2xl z-50 p-2 space-y-1 max-h-80 overflow-y-auto">
+                                  <div className="absolute top-full left-0 mt-2 w-full sm:min-w-[240px] bg-background border border-border rounded-xl shadow-2xl z-50 p-2 space-y-1 max-h-80 overflow-y-auto">
                                     {activeLotteries.length > 0 ? (
                                       <>
                                         <div className="flex items-center justify-between p-2 border-b border-white/10 mb-1">
@@ -6451,7 +6898,7 @@ function App() {
                         betType === 'PL' ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
-                      Palé
+                      PalÃ©
                     </button>
                   )}
                   {globalSettings.billetesEnabled && (isMultipleMode ? multiLottery.some(name => activeLotteries.find(l => l.name === name)?.isFourDigits) : activeLotteries.find(l => l.name === selectedLottery)?.isFourDigits) && (
@@ -6483,7 +6930,7 @@ function App() {
                       focusedField === 'number' ? 'border-primary bg-primary/5' : 'border-transparent'
                     }`}
                   >
-                    <span className="text-[11px] font-mono uppercase text-muted-foreground font-medium">Número</span>
+                    <span className="text-[11px] font-mono uppercase text-muted-foreground font-medium">NÃºmero</span>
                     <div className="flex items-center justify-center min-h-[32px] relative w-full">
                       <input
                         ref={numberInputRef}
@@ -6538,7 +6985,7 @@ function App() {
                     }`}
                   >
                     <span className="text-[11px] font-mono uppercase text-muted-foreground font-medium">
-                      {betType === 'CH' ? 'Cantidad' : 'Inversión'}
+                      {betType === 'CH' ? 'Cantidad' : 'InversiÃ³n'}
                     </span>
                     <div className="flex items-center justify-center min-h-[32px] relative w-full">
                       <input
@@ -6649,7 +7096,7 @@ function App() {
                                     </button>
                                   </div>
                                   <button onClick={() => removeFromCart(bet.originalIdx)} className="text-red-500/70 hover:text-red-500 p-1.5 transition-colors">
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
                               </div>
@@ -6695,7 +7142,7 @@ function App() {
                   className="w-full py-3 bg-white/5 border border-border rounded-xl text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-all flex items-center justify-center gap-2"
                 >
                   <Zap className="w-4 h-4" />
-                  Copiado Rápido
+                  Copiado RÃ¡pido
                 </button>
 
                 {/* Seller Daily Balance Summary */}
@@ -6704,7 +7151,7 @@ function App() {
                     <div className="flex items-center justify-between border-b border-primary/10 pb-2">
                       <div className="flex items-center gap-2">
                         <LayoutDashboard className="w-4 h-4 text-primary" />
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Resumen del Día</h3>
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Resumen del DÃ­a</h3>
                       </div>
                       <span className="text-[10px] font-mono opacity-50">{todayStr}</span>
                     </div>
@@ -6962,7 +7409,7 @@ function App() {
                                         Anterior
                                       </button>
                                       <span className="text-[10px] font-mono text-muted-foreground">
-                                        Página {currentPage} de {totalPages}
+                                        PÃ¡gina {currentPage} de {totalPages}
                                       </span>
                                       <button 
                                         onClick={(e) => {
@@ -7005,7 +7452,7 @@ function App() {
                 <div className="glass-card p-4 sm:p-6 border border-white/5">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                     <div>
-                      <h2 className="text-xl font-light text-white">Estadísticas de Venta</h2>
+                      <h2 className="text-xl font-light text-white">EstadÃ­sticas de Venta</h2>
                       <p className="text-sm font-light text-muted-foreground mt-1">Fracciones y combinaciones por sorteo</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
@@ -7091,7 +7538,7 @@ function App() {
                           {isExpanded && (
                             <div className="p-3 border-t border-white/5">
                               <div className="mb-4">
-                                <h4 className="text-xs font-light text-white/70 mb-2">Números (00-99) - Fracciones</h4>
+                                <h4 className="text-xs font-light text-white/70 mb-2">NÃºmeros (00-99) - Fracciones</h4>
                                 <div className="grid grid-cols-10 gap-[2px]">
                                   {Array.from({ length: 100 }).map((_, i) => {
                                     const num = i.toString().padStart(2, '0');
@@ -7279,11 +7726,11 @@ function App() {
                           <table className="w-full text-sm border-collapse mb-6">
                             <thead>
                               <tr className="bg-gray-100">
-                                <th className="border p-2 text-center w-1/6">Núm</th>
+                                <th className="border p-2 text-center w-1/6">NÃºm</th>
                                 <th className="border p-2 text-center w-1/6">Tiempos</th>
-                                <th className="border p-2 text-center w-1/6">Núm</th>
+                                <th className="border p-2 text-center w-1/6">NÃºm</th>
                                 <th className="border p-2 text-center w-1/6">Tiempos</th>
-                                <th className="border p-2 text-center w-1/6">Núm</th>
+                                <th className="border p-2 text-center w-1/6">NÃºm</th>
                                 <th className="border p-2 text-center w-1/6">Tiempos</th>
                               </tr>
                             </thead>
@@ -7336,89 +7783,291 @@ function App() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="space-y-8"
+                className="space-y-4"
               >
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                <div className="flex flex-col items-start justify-between gap-2">
                   <div>
-                    <h2 className="text-3xl font-black tracking-tighter neon-text uppercase">Resultados de Sorteos</h2>
-                    <p className="text-muted-foreground text-sm font-mono mt-1">GESTIÓN DE PREMIOS Y GANADORES</p>
+                    <h2 className="text-2xl md:text-3xl font-black tracking-tighter neon-text uppercase">Resultados de Sorteos</h2>
+                    <p className="text-muted-foreground text-xs font-mono mt-1">
+                      {canManageResults ? 'INGRESO Y CONTROL DE RESULTADOS EN TIEMPO REAL' : 'ULTIMOS RESULTADOS PUBLICADOS'}
+                    </p>
                   </div>
-                  {(userProfile?.role === 'ceo' || userProfile?.role === 'admin') && (
-                    <button
-                      onClick={() => { setEditingResult(null); setShowResultModal(true); }}
-                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-bold uppercase tracking-widest text-xs hover:scale-105 transition-all shadow-lg shadow-primary/20"
-                    >
-                      <Plus className="w-4 h-4" /> Ingresar Resultado
-                    </button>
-                  )}
                 </div>
 
-                <div className="glass-card overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-border bg-white/5">
-                          <th className="p-2 md:p-4 text-[10px] font-mono uppercase text-muted-foreground">Fecha</th>
-                          <th className="p-2 md:p-4 text-[10px] font-mono uppercase text-muted-foreground">Sorteo</th>
-                          <th className="p-2 md:p-4 text-[10px] font-mono uppercase text-muted-foreground">1er Premio</th>
-                          <th className="p-2 md:p-4 text-[10px] font-mono uppercase text-muted-foreground">2do Premio</th>
-                          <th className="p-2 md:p-4 text-[10px] font-mono uppercase text-muted-foreground">3er Premio</th>
-                          <th className="p-2 md:p-4 text-[10px] font-mono uppercase text-muted-foreground text-right">Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {results.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="p-12 text-center text-muted-foreground font-mono uppercase text-xs">
-                              No hay resultados registrados
+                {canManageResults && (
+                  <div className="glass-card p-2.5 md:p-3 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground">
+                        {editingResult ? 'Editar Resultado' : 'Nuevo Resultado'}
+                      </h3>
+                      {editingResult && (
+                        <button
+                          onClick={cancelResultEdition}
+                          className="text-[10px] px-2 py-0.5 rounded-md border border-border text-muted-foreground hover:text-white hover:bg-white/5 uppercase tracking-wider font-bold"
+                        >
+                          Cancelar Edicion
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="md:hidden space-y-2">
+                      <div className="grid grid-cols-1 gap-2">
+                        <div>
+                          <label className="text-[10px] font-mono uppercase text-muted-foreground">Fecha</label>
+                          {isCeoUser ? (
+                            <input
+                              type="date"
+                              value={resultFormDate}
+                              onChange={(e) => {
+                                setResultFormDate(e.target.value);
+                                setResultFormLotteryId('');
+                              }}
+                              className="mt-1 w-full bg-white/5 border border-border rounded px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                          ) : (
+                            <div className="mt-1 inline-flex items-center rounded px-2 py-1 text-[11px] font-mono bg-white/5 border border-border">
+                              {businessDayKey}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-mono uppercase text-muted-foreground">Sorteo</label>
+                          <select
+                            value={resultFormLotteryId}
+                            onChange={(e) => setResultFormLotteryId(e.target.value)}
+                            disabled={availableResultLotteries.length === 0}
+                            className="mt-1 w-full bg-white/5 border border-border rounded px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary appearance-none disabled:opacity-50"
+                          >
+                            <option value="" className="bg-[#111827]">Seleccionar Sorteo</option>
+                            {availableResultLotteries.map(lottery => (
+                              <option key={lottery.id} value={lottery.id} className="bg-[#111827]">
+                                {cleanText(lottery.name)} ({lottery.drawTime ? formatTime12h(lottery.drawTime) : '--:--'})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <input
+                          type="text"
+                          maxLength={(lotteryById.get(resultFormLotteryId)?.isFourDigits ? 4 : 2)}
+                          value={resultFormFirstPrize}
+                          onChange={(e) => setResultFormFirstPrize(e.target.value.replace(/\D/g, ''))}
+                          className="w-full border border-yellow-400/50 bg-yellow-500/20 text-yellow-200 rounded px-1 py-1 text-xs font-black text-center focus:outline-none focus:ring-1 focus:ring-yellow-300"
+                          placeholder={(lotteryById.get(resultFormLotteryId)?.isFourDigits ? '0000' : '00')}
+                        />
+                        <input
+                          type="text"
+                          maxLength={(lotteryById.get(resultFormLotteryId)?.isFourDigits ? 4 : 2)}
+                          value={resultFormSecondPrize}
+                          onChange={(e) => setResultFormSecondPrize(e.target.value.replace(/\D/g, ''))}
+                          className="w-full border border-blue-400/50 bg-blue-500/20 text-blue-200 rounded px-1 py-1 text-xs font-black text-center focus:outline-none focus:ring-1 focus:ring-blue-300"
+                          placeholder={(lotteryById.get(resultFormLotteryId)?.isFourDigits ? '0000' : '00')}
+                        />
+                        <input
+                          type="text"
+                          maxLength={(lotteryById.get(resultFormLotteryId)?.isFourDigits ? 4 : 2)}
+                          value={resultFormThirdPrize}
+                          onChange={(e) => setResultFormThirdPrize(e.target.value.replace(/\D/g, ''))}
+                          className="w-full border border-orange-400/50 bg-orange-500/20 text-orange-200 rounded px-1 py-1 text-xs font-black text-center focus:outline-none focus:ring-1 focus:ring-orange-300"
+                          placeholder={(lotteryById.get(resultFormLotteryId)?.isFourDigits ? '0000' : '00')}
+                        />
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          onClick={handleCreateResultFromForm}
+                          disabled={availableResultLotteries.length === 0 || !resultFormLotteryId || !resultFormFirstPrize || !resultFormSecondPrize || !resultFormThirdPrize}
+                          className="inline-flex items-center justify-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded font-bold uppercase tracking-wider text-[10px] disabled:opacity-50"
+                        >
+                          {editingResult ? 'Actualizar' : 'Guardar'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-border bg-white/5">
+                            <th className="p-1 text-[10px] font-mono uppercase text-muted-foreground">Fecha</th>
+                            <th className="p-1 text-[10px] font-mono uppercase text-muted-foreground">Sorteo</th>
+                            <th className="p-1 text-[10px] font-mono uppercase text-muted-foreground">1ro</th>
+                            <th className="p-1 text-[10px] font-mono uppercase text-muted-foreground">2do</th>
+                            <th className="p-1 text-[10px] font-mono uppercase text-muted-foreground">3ro</th>
+                            <th className="p-1 text-[10px] font-mono uppercase text-muted-foreground text-right">Accion</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b border-border/70">
+                            <td className="p-1 min-w-[92px]">
+                              {isCeoUser ? (
+                                <input
+                                  type="date"
+                                  value={resultFormDate}
+                                  onChange={(e) => {
+                                    setResultFormDate(e.target.value);
+                                    setResultFormLotteryId('');
+                                  }}
+                                  className="w-28 bg-white/5 border border-border rounded px-1 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                              ) : (
+                                <div className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-mono bg-white/5 border border-border">
+                                  {businessDayKey}
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-1 min-w-[168px]">
+                              <select
+                                value={resultFormLotteryId}
+                                onChange={(e) => setResultFormLotteryId(e.target.value)}
+                                disabled={availableResultLotteries.length === 0}
+                                className="w-full bg-white/5 border border-border rounded px-1.5 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-primary appearance-none disabled:opacity-50"
+                              >
+                                <option value="" className="bg-[#111827]">Seleccionar Sorteo</option>
+                                {availableResultLotteries.map(lottery => (
+                                  <option key={lottery.id} value={lottery.id} className="bg-[#111827]">
+                                    {cleanText(lottery.name)} ({lottery.drawTime ? formatTime12h(lottery.drawTime) : '--:--'})
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="p-1 min-w-[58px]">
+                              <input
+                                type="text"
+                                maxLength={(lotteryById.get(resultFormLotteryId)?.isFourDigits ? 4 : 2)}
+                                value={resultFormFirstPrize}
+                                onChange={(e) => setResultFormFirstPrize(e.target.value.replace(/\D/g, ''))}
+                                className="w-full border border-yellow-400/50 bg-yellow-500/20 text-yellow-200 rounded px-1 py-0.5 text-[11px] font-black text-center focus:outline-none focus:ring-1 focus:ring-yellow-300"
+                                placeholder={(lotteryById.get(resultFormLotteryId)?.isFourDigits ? '0000' : '00')}
+                              />
+                            </td>
+                            <td className="p-1 min-w-[58px]">
+                              <input
+                                type="text"
+                                maxLength={(lotteryById.get(resultFormLotteryId)?.isFourDigits ? 4 : 2)}
+                                value={resultFormSecondPrize}
+                                onChange={(e) => setResultFormSecondPrize(e.target.value.replace(/\D/g, ''))}
+                                className="w-full border border-blue-400/50 bg-blue-500/20 text-blue-200 rounded px-1 py-0.5 text-[11px] font-black text-center focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                placeholder={(lotteryById.get(resultFormLotteryId)?.isFourDigits ? '0000' : '00')}
+                              />
+                            </td>
+                            <td className="p-1 min-w-[58px]">
+                              <input
+                                type="text"
+                                maxLength={(lotteryById.get(resultFormLotteryId)?.isFourDigits ? 4 : 2)}
+                                value={resultFormThirdPrize}
+                                onChange={(e) => setResultFormThirdPrize(e.target.value.replace(/\D/g, ''))}
+                                className="w-full border border-orange-400/50 bg-orange-500/20 text-orange-200 rounded px-1 py-0.5 text-[11px] font-black text-center focus:outline-none focus:ring-1 focus:ring-orange-300"
+                                placeholder={(lotteryById.get(resultFormLotteryId)?.isFourDigits ? '0000' : '00')}
+                              />
+                            </td>
+                            <td className="p-1 min-w-[82px] text-right">
+                              <button
+                                onClick={handleCreateResultFromForm}
+                                disabled={availableResultLotteries.length === 0 || !resultFormLotteryId || !resultFormFirstPrize || !resultFormSecondPrize || !resultFormThirdPrize}
+                                className="inline-flex items-center justify-center gap-1 px-2 py-0.5 bg-primary text-primary-foreground rounded font-bold uppercase tracking-wider text-[10px] disabled:opacity-50"
+                              >
+                                {editingResult ? 'Actualizar' : 'Guardar'}
+                              </button>
                             </td>
                           </tr>
-                        ) : (
-                          results.sort((a, b) => b.date.localeCompare(a.date)).map((res) => (
-                            <tr key={res.id} className="hover:bg-white/5 transition-colors group">
-                              <td className="p-2 md:p-4 font-mono text-sm">{res.date}</td>
-                              <td className="p-2 md:p-4 font-bold text-sm">{cleanText(res.lotteryName)}</td>
-                              <td className="p-2 md:p-4">
-                                <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full font-black text-sm border border-green-500/30">
-                                  {res.firstPrize}
-                                </span>
-                              </td>
-                              <td className="p-2 md:p-4">
-                                <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full font-bold text-sm border border-blue-500/30">
-                                  {res.secondPrize}
-                                </span>
-                              </td>
-                              <td className="p-2 md:p-4">
-                                <span className="px-3 py-1 bg-violet-500/20 text-violet-400 rounded-full font-bold text-sm border border-violet-500/30">
-                                  {res.thirdPrize}
-                                </span>
-                              </td>
-                              <td className="p-2 md:p-4 text-right">
-                                <div className="flex items-center justify-end gap-2 transition-opacity">
-                                  {(userProfile?.role === 'ceo' || userProfile?.role === 'admin') && (
-                                    <button
-                                      onClick={() => { setEditingResult(res); setShowResultModal(true); }}
-                                      className="p-3 hover:bg-white/10 rounded-xl text-primary transition-colors"
-                                    >
-                                      <Edit2 className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                  {(userProfile?.role === 'ceo' || userProfile?.role === 'admin') && (
-                                    <button
-                                      onClick={() => deleteResult(res.id)}
-                                      className="p-3 hover:bg-red-400/10 rounded-xl text-red-400 transition-colors"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {availableResultLotteries.length === 0 && (
+                      <div className="text-xs font-mono uppercase tracking-wider text-amber-300/90 bg-amber-500/10 border border-amber-400/20 rounded-xl px-3 py-2">
+                        Todos los sorteos ya tienen resultados para esta fecha
+                      </div>
+                    )}
                   </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                  {visibleResults.length === 0 ? (
+                    <div className="glass-card p-4 text-center text-muted-foreground font-mono uppercase text-xs md:col-span-2 xl:col-span-3">
+                      No hay resultados registrados
+                    </div>
+                  ) : (
+                    visibleResults.map((res) => {
+                      const stats = resultStatusMap.get(getResultKey(res));
+                      const isLoss = !!stats && stats.prizes > stats.sales && stats.prizes > 0;
+                      const hasWinners = !!stats && stats.hasWinners;
+                      const statusTone = canManageResults
+                        ? (isLoss ? 'loss' : (hasWinners ? 'winner' : 'neutral'))
+                        : 'neutral';
+                      const statusClasses = statusTone === 'loss'
+                        ? 'border-red-400/40 bg-red-500/10'
+                        : statusTone === 'winner'
+                          ? 'border-emerald-400/40 bg-emerald-500/10'
+                          : 'border-border bg-white/5';
+                      const lotteryInfo = lotteryById.get(res.lotteryId);
+
+                      return (
+                        <div key={res.id} className={`glass-card rounded-2xl p-1.5 md:p-2 border ${statusClasses}`}>
+                          <div className="flex items-start justify-between gap-1.5">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <p className="text-[11px] md:text-xs font-black uppercase tracking-wide leading-tight break-words">{cleanText(res.lotteryName)}</p>
+                                <span className="text-[11px] md:text-xs font-black uppercase tracking-wide leading-tight text-muted-foreground shrink-0">
+                                  {lotteryInfo?.drawTime ? formatTime12h(lotteryInfo.drawTime) : '--:--'}
+                                </span>
+                              </div>
+                            </div>
+                            {canManageResults && (
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                <button
+                                  onClick={() => {
+                                    if (!isCeoUser && res.date !== businessDayKey) {
+                                      toast.error('Solo el CEO puede editar resultados fuera de la fecha operativa');
+                                      return;
+                                    }
+                                    setEditingResult(res);
+                                  }}
+                                  disabled={!isCeoUser && res.date !== businessDayKey}
+                                  className="p-1 hover:bg-white/10 rounded-lg text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                  title="Editar resultado"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (!isCeoUser && res.date !== businessDayKey) {
+                                      toast.error('Solo el CEO puede eliminar resultados fuera de la fecha operativa');
+                                      return;
+                                    }
+                                    deleteResult(res.id);
+                                  }}
+                                  disabled={!isCeoUser && res.date !== businessDayKey}
+                                  className="p-1 hover:bg-red-400/10 rounded-lg text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                  title="Eliminar resultado"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1 mt-1">
+                            <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/15 px-1 py-0.5 text-center">
+                              <div className="text-[9px] font-mono uppercase text-yellow-300">1ro</div>
+                              <div className="text-xs md:text-sm font-black text-yellow-200 leading-none">{res.firstPrize}</div>
+                            </div>
+                            <div className="rounded-xl border border-blue-500/40 bg-blue-500/15 px-1 py-0.5 text-center">
+                              <div className="text-[9px] font-mono uppercase text-blue-300">2do</div>
+                              <div className="text-xs md:text-sm font-black text-blue-200 leading-none">{res.secondPrize}</div>
+                            </div>
+                            <div className="rounded-xl border border-orange-500/40 bg-orange-500/15 px-1 py-0.5 text-center">
+                              <div className="text-[9px] font-mono uppercase text-orange-300">3ro</div>
+                              <div className="text-xs md:text-sm font-black text-orange-200 leading-none">{res.thirdPrize}</div>
+                            </div>
+                          </div>
+
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </motion.div>
             )}
@@ -7434,8 +8083,8 @@ function App() {
                 <div className="glass-card p-4 sm:p-6 md:p-10">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10">
                     <div>
-                      <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">ADMINISTRACIÓN</h2>
-                      <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">Gestión de Loterías y Parámetros</p>
+                      <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">ADMINISTRACIÃ“N</h2>
+                      <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">GestiÃ³n de LoterÃ­as y ParÃ¡metros</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                       {userProfile?.role === 'ceo' && (
@@ -7453,7 +8102,7 @@ function App() {
                             }}
                             className="flex-1 sm:flex-none bg-primary text-primary-foreground px-4 sm:px-6 py-3 rounded-xl font-bold uppercase text-[10px] sm:text-xs tracking-widest flex items-center justify-center gap-2 hover:brightness-110 transition-all"
                           >
-                            <Plus className="w-4 h-4" /> Nueva Lotería
+                            <Plus className="w-4 h-4" /> Nueva LoterÃ­a
                           </button>
                         </>
                       )}
@@ -7505,7 +8154,7 @@ function App() {
                               onClick={() => deleteLottery(lot.id)}
                               className="p-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg shrink-0"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         )}
@@ -7528,14 +8177,14 @@ function App() {
                           for (const lot of defaults) {
                             await addDoc(collection(db, 'lotteries'), { ...lot, active: true });
                           }
-                          toast.success('Loterías iniciales creadas');
+                          toast.success('LoterÃ­as iniciales creadas');
                         }}
                         className="col-span-full p-10 border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center gap-4 hover:bg-white/5 transition-all group"
                       >
                         <Settings className="w-12 h-12 text-muted-foreground group-hover:text-primary transition-colors" />
                         <div className="text-center">
-                          <p className="font-black uppercase tracking-widest text-sm">Sembrar Loterías Iniciales</p>
-                          <p className="text-[10px] font-mono text-muted-foreground mt-1">Configura rápidamente las loterías más comunes de Colombia</p>
+                          <p className="font-black uppercase tracking-widest text-sm">Sembrar LoterÃ­as Iniciales</p>
+                          <p className="text-[10px] font-mono text-muted-foreground mt-1">Configura rÃ¡pidamente las loterÃ­as mÃ¡s comunes de Colombia</p>
                         </div>
                       </button>
                     )}
@@ -7548,19 +8197,19 @@ function App() {
                           let fixedCount = 0;
                           for (const docSnap of snap.docs) {
                             const data = docSnap.data();
-                            if (data.name && (data.name.includes('Ø') || data.name.includes('<') || data.name.includes('Ý'))) {
+                            if (data.name && (data.name.includes('?') || data.name.includes('<') || data.name.includes('Ã'))) {
                               const newName = cleanText(data.name);
                               await updateDoc(doc(db, 'lotteries', docSnap.id), { name: newName });
                               fixedCount++;
                             }
                           }
-                          toast.success(`${fixedCount} loterías corregidas`);
+                          toast.success(`${fixedCount} loterÃ­as corregidas`);
                         }}
                         className="col-span-full p-4 border border-dashed border-primary/30 rounded-xl flex items-center justify-center gap-4 hover:bg-primary/5 transition-all group mt-4"
                       >
                         <ShieldCheck className="w-5 h-5 text-primary" />
                         <div className="text-center">
-                          <p className="font-bold uppercase tracking-widest text-xs">Corregir Nombres de Loterías Corruptos</p>
+                          <p className="font-bold uppercase tracking-widest text-xs">Corregir Nombres de LoterÃ­as Corruptos</p>
                         </div>
                       </button>
                     )}
@@ -7575,8 +8224,8 @@ function App() {
                             <Trash2 className="w-5 h-5" /> Zona de Peligro
                           </h3>
                           <p className="text-xs font-mono text-muted-foreground mt-2 max-w-xl">
-                            Esta acción eliminará permanentemente todos los registros de ventas, tickets, inyecciones de capital y resultados de loterías. 
-                            Solo las loterías y los usuarios se mantendrán intactos.
+                            Esta acciÃ³n eliminarÃ¡ permanentemente todos los registros de ventas, tickets, inyecciones de capital y resultados de loterÃ­as. 
+                            Solo las loterÃ­as y los usuarios se mantendrÃ¡n intactos.
                           </p>
                         </div>
                         <button 
@@ -7604,7 +8253,7 @@ function App() {
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
                     <div>
                       <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">USUARIOS</h2>
-                      <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">Gestión de Accesos y Comisiones</p>
+                      <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">GestiÃ³n de Accesos y Comisiones</p>
                     </div>
                     <div className="flex items-center gap-4 w-full sm:w-auto">
                       <select 
@@ -7627,7 +8276,7 @@ function App() {
                                 value={u.email} 
                                 className={`bg-gray-900 ${isLowUtility ? 'text-red-500 font-bold' : ''}`}
                               >
-                                {u.name} ({u.email?.split('@')[0] || ''}) {isLowUtility ? '⚠️' : ''}
+                                {u.name} ({u.email?.split('@')[0] || ''}) {isLowUtility ? '??' : ''}
                               </option>
                             );
                           });
@@ -7666,7 +8315,7 @@ function App() {
                               <p className="font-black text-sm uppercase tracking-tight text-white/90">{u.name}</p>
                               <div className="flex items-center gap-2 mt-1">
                                 <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">{u.role}</p>
-                                <span className="text-muted-foreground">•</span>
+                                <span className="text-muted-foreground">â¬¢</span>
                                 <p className="text-[10px] font-mono text-muted-foreground">{u.email}</p>
                               </div>
                             </div>
@@ -7728,7 +8377,7 @@ function App() {
                                 setShowUserModal(true);
                               }}
                               disabled={u.role === 'ceo' && userProfile?.role !== 'ceo'}
-                              className="flex-1 min-w-[120px] bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                              className="flex-1 min-w-0 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                             >
                               <Settings className="w-4 h-4" /> Configurar
                             </button>
@@ -7742,7 +8391,7 @@ function App() {
                                 setIsInjectionOnly(true);
                                 setShowInjectionModal(true);
                               }}
-                              className="flex-1 min-w-[120px] bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                              className="flex-1 min-w-0 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
                             >
                               <Zap className="w-4 h-4" /> Inyectar Capital
                             </button>
@@ -7754,7 +8403,7 @@ function App() {
                               className="p-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl transition-all"
                               title="Eliminar Usuario"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
@@ -7790,7 +8439,7 @@ function App() {
                             onClick={() => setConsolidatedMode('day')}
                             className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${consolidatedMode === 'day' ? 'bg-primary text-primary-foreground' : 'bg-white/5 text-muted-foreground'}`}
                           >
-                            Un DÃ­a
+                            Un Día
                           </button>
                           <button
                             onClick={() => setConsolidatedMode('range')}
@@ -7923,6 +8572,16 @@ function App() {
 
                       {selectedUserToLiquidate && (userProfile?.role === 'ceo' || userProfile?.canLiquidate) && (
                         <>
+                          {selectedLiquidationSettlement && (
+                            <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300">
+                                LIQUIDADO
+                              </p>
+                              <p className="text-[10px] font-mono text-emerald-200">
+                                Monto registrado: USD {(selectedLiquidationSettlement.amountPaid || 0).toFixed(2)}
+                              </p>
+                            </div>
+                          )}
                           <div className="space-y-2">
                             <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Monto Entregado (USD)</label>
                             <input 
@@ -7938,7 +8597,7 @@ function App() {
                             onClick={handleLiquidate}
                             className="w-full bg-primary text-primary-foreground font-black uppercase tracking-widest py-4 rounded-xl hover:brightness-110 transition-all mt-6 shadow-lg shadow-primary/20"
                           >
-                            Liquidar Día {liquidationDate}
+                            {selectedLiquidationSettlement ? `Actualizar liquidación ${liquidationDate}` : `Liquidar día ${liquidationDate}`}
                           </button>
                         </>
                       )}
@@ -7958,7 +8617,9 @@ function App() {
                             isCurrentOperationalDate ? results : liquidationResultsSnapshot
                           )
                         });
-                        const previousDebt = userToLiquidate?.currentDebt || 0;
+                        const previousDebt = selectedLiquidationSettlement
+                          ? selectedLiquidationSettlement.previousDebt
+                          : (userToLiquidate?.currentDebt || 0);
 
                         return (
                           <div id="liquidation-report" className="glass-card p-8 space-y-8 bg-black border-white/10 relative overflow-hidden">
@@ -7969,9 +8630,14 @@ function App() {
                                 <h3 className="text-xl font-black uppercase tracking-tighter text-primary">REPORTE DE VENTAS</h3>
                                 <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">{liquidationDate}</p>
                               </div>
-                              <div className="text-right">
+                              <div className="text-right space-y-1">
                                 <p className="text-xs font-black text-white">{userToLiquidate?.name}</p>
                                 <p className="text-[9px] font-mono text-muted-foreground uppercase">ID: {userToLiquidate?.sellerId}</p>
+                                {selectedLiquidationSettlement && (
+                                  <span className="inline-block rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-300">
+                                    LIQUIDADO
+                                  </span>
+                                )}
                               </div>
                             </div>
 
@@ -8288,11 +8954,11 @@ function App() {
                           </select>
                         </div>
                         <p className="text-[10px] text-muted-foreground leading-relaxed">
-                          Este ajuste personal define a qué precio venderás los chances y cómo el sistema calculará sus premios según la tabla global configurada por el CEO.
+                          Este ajuste personal define a quÃ© precio venderÃ¡s los chances y cÃ³mo el sistema calcularÃ¡ sus premios segÃºn la tabla global configurada por el CEO.
                         </p>
                         {!canUpdatePersonalChancePrice && (
                           <p className="text-[10px] text-amber-400 leading-relaxed">
-                            Este precio solo puede cambiarse antes de tu primera venta del día o después de haber sido liquidado.
+                            Este precio solo puede cambiarse antes de tu primera venta del dÃ­a o despuÃ©s de haber sido liquidado.
                           </p>
                         )}
                         <button
@@ -8316,23 +8982,23 @@ function App() {
 
                       <form onSubmit={handleUpdatePassword} className="space-y-4">
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Nueva Contraseña</label>
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Nueva ContraseÃ±a</label>
                           <input 
                             type="password"
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
                             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary transition-all"
-                            placeholder="Mínimo 6 caracteres"
+                            placeholder="MÃ­nimo 6 caracteres"
                           />
                         </div>
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Confirmar Contraseña</label>
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Confirmar ContraseÃ±a</label>
                           <input 
                             type="password"
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary transition-all"
-                            placeholder="Repita la contraseña"
+                            placeholder="Repita la contraseÃ±a"
                           />
                         </div>
                         <button 
@@ -8340,7 +9006,7 @@ function App() {
                           disabled={isUpdatingPassword}
                           className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-primary/90 transition-all disabled:opacity-50"
                         >
-                          {isUpdatingPassword ? 'Actualizando...' : 'Cambiar Contraseña'}
+                          {isUpdatingPassword ? 'Actualizando...' : 'Cambiar ContraseÃ±a'}
                         </button>
                       </form>
                     </div>
@@ -8353,9 +9019,9 @@ function App() {
         </main>
 
         {/* Footer */}
-        <footer className="h-12 glass border-t border-border px-8 flex items-center justify-between shrink-0 text-[9px] font-mono text-muted-foreground uppercase tracking-[0.2em]">
-          <p>© 2026 CHANCE PRO SYSTEMS • TERMINAL {user.uid.slice(0, 8)}</p>
-          <div className="flex gap-8">
+        <footer className="h-auto min-h-12 glass border-t border-border px-3 sm:px-8 py-2 flex items-center justify-between gap-2 shrink-0 text-[8px] sm:text-[9px] font-mono text-muted-foreground uppercase tracking-[0.12em] sm:tracking-[0.2em]">
+          <p>Â© 2026 CHANCE PRO SYSTEMS â¬¢ TERMINAL {user.uid.slice(0, 8)}</p>
+          <div className="flex gap-3 sm:gap-8 flex-wrap justify-end">
             <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-500" /> SERVER: OK</span>
             <span>V1.2.0-STABLE</span>
           </div>
@@ -8366,5 +9032,9 @@ function App() {
     </>
   );
 }
+
+
+
+
 
 

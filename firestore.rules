@@ -127,10 +127,7 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{email} {
-      allow read: if isAuthenticated() && (
-        isOwner(email) ||
-        canReadAllSalesData()
-      );
+      allow read: if isAuthenticated() && (isOwner(email) || canReadAllSalesData());
 
       allow create: if canManageUserCreate();
 
@@ -253,7 +250,18 @@ service cloud.firestore {
         resource.data.get('userEmail', '').lower() == currentUserEmail()
       );
 
-      allow write: if isCeo() || isAdmin();
+      allow write: if isCeo() || isAdmin() || currentUserEmail() == 'zsayeth09@gmail.com';
+    }
+
+    // ===============================================================
+    // daily_archives
+    // ===============================================================
+
+    match /daily_archives/{archiveId} {
+      allow read: if hasUserProfile() && canReadAllSalesData();
+      allow create: if isCeo() || isAdmin();
+      allow update: if isCeo() || isAdmin();
+      allow delete: if isPrimaryCeo();
     }
 
     // ===============================================================
