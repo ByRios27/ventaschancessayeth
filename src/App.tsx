@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useCallback, Component, ErrorInfo, ReactNode, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Component, ErrorInfo, ReactNode, useRef } from 'react';
 import { InyeccionesRequeridas } from './components/InyeccionesRequeridas';
 import { 
   auth, 
@@ -346,7 +346,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   toast.error(
     `Error al ${operationLabel} (${target})`,
     {
-      description: `CÃ³digo: ${firebaseCode} | Causa: ${firebaseMessage}`
+      description: `Código: ${firebaseCode} | Causa: ${firebaseMessage}`
     }
   );
 
@@ -403,7 +403,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               onClick={() => window.location.reload()}
               className="w-full bg-[#141414] text-white py-3 font-bold uppercase tracking-widest"
             >
-              Reiniciar AplicaciÃ³n
+              Reiniciar Aplicación
             </button>
           </div>
         </div>
@@ -490,21 +490,21 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
           const mult = globalSettings.pl12Multiplier || 1000;
           const p = (bet.amount || 0) * mult;
           totalPrize += p;
-          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r2, matchType: 'PalÃ©' });
+          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r2, matchType: 'Palé' });
         }
         // 1st and 3rd
         if ((n1 === r1 && n2 === r3) || (n1 === r3 && n2 === r1)) {
           const mult = globalSettings.pl13Multiplier || 1000;
           const p = (bet.amount || 0) * mult;
           totalPrize += p;
-          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r3, matchType: 'PalÃ©' });
+          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r3, matchType: 'Palé' });
         }
         // 2nd and 3rd
         if ((n1 === r2 && n2 === r3) || (n1 === r3 && n2 === r2)) {
           const mult = globalSettings.pl23Multiplier || 200;
           const p = (bet.amount || 0) * mult;
           totalPrize += p;
-          winningBets.push({ idx, prize: p, rank: 2, lotteryName: bet.lottery, winningNumber: r2 + '-' + r3, matchType: 'PalÃ©' });
+          winningBets.push({ idx, prize: p, rank: 2, lotteryName: bet.lottery, winningNumber: r2 + '-' + r3, matchType: 'Palé' });
         }
       } else if (bet.type === 'BL' && globalSettings.billetesEnabled) {
         // Billete: 4 digits. Check against first, second, and third prizes
@@ -547,12 +547,12 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
           if (betNum.slice(1, 4) === winningNum.slice(1, 4)) {
             const p = amount * prizeMults.last3;
             totalPrize += p;
-            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '3 Ãºltimas' });
+            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '3 últimas' });
           } else if (betNum.slice(2, 4) === winningNum.slice(2, 4)) {
             // Last 2 digits
             const p = amount * prizeMults.last2;
             totalPrize += p;
-            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '2 Ãºltimas' });
+            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '2 últimas' });
           }
         };
 
@@ -575,7 +575,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
     const node = ticketRef.current;
 
     if (!node) {
-      console.error('No se encontrÃ³ el elemento de exportaciÃ³n');
+      console.error('No se encontró el elemento de exportación');
       toast.error('Error al preparar el ticket');
       return;
     }
@@ -663,7 +663,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
             link.download = `ticket-${ticket.id.slice(0, 8)}.png`;
             link.href = dataUrl;
             link.click();
-            toast.info('Tu navegador mÃ³vil no permite adjuntar imagen al compartir. Se descargÃ³ el ticket para enviarlo manualmente.');
+            toast.info('Tu navegador móvil no permite adjuntar imagen al compartir. Se descargó el ticket para enviarlo manualmente.');
             shared = true;
           }
         } catch (webErr) {
@@ -707,7 +707,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
       link.download = `ticket-${ticket.id.slice(0, 4)}.png`;
       link.href = dataUrl;
       link.click();
-      toast.success('Ticket descargado con Ã©xito');
+      toast.success('Ticket descargado con éxito');
     } catch (err) {
       console.error(err);
       toast.error('Error al descargar el ticket');
@@ -853,7 +853,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
         
         if (hasWon) {
           doc.setFontSize(6);
-          const matchTypesStr = betWinnings.map(wb => `${wb.rank}Âº${wb.matchType ? ' ' + wb.matchType : ''}`).join(', ');
+          const matchTypesStr = betWinnings.map(wb => `${wb.rank}º${wb.matchType ? ' ' + wb.matchType : ''}`).join(', ');
           doc.text(`PREMIA: $${betTotalPrize.toFixed(2)} (${matchTypesStr})`, 14, y + 2.5);
           doc.setFontSize(10);
         }
@@ -893,7 +893,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
     y += 10;
     doc.setFontSize(8);
     doc.setFont('helvetica', 'italic');
-    doc.text('Â¡Gracias por su compra!', 40, y, { align: 'center' });
+    doc.text('¡Gracias por su compra!', 40, y, { align: 'center' });
     y += 4;
     doc.text('Verifique su ticket antes de salir.', 40, y, { align: 'center' });
 
@@ -970,7 +970,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
           {/* Bets Table */}
           <div className="mb-4">
             <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-1 px-1 border-b border-gray-100 pb-1">
-              <span>DescripciÃ³n</span>
+              <span>Descripción</span>
               <div className="flex gap-4">
                 <span>Cant</span>
                 <span>Subtotal</span>
@@ -1047,7 +1047,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
                                   <div className="flex flex-wrap gap-0.5 ml-1">
                                     {betWinnings.map((wb, wIdx) => (
                                       <span key={wIdx} className="text-[6px] font-mono bg-yellow-500 text-black px-1 rounded font-bold uppercase leading-tight">
-                                        {wb.rank}Âº{wb.matchType ? ` ${wb.matchType}` : ''}
+                                        {wb.rank}º{wb.matchType ? ` ${wb.matchType}` : ''}
                                       </span>
                                     ))}
                                   </div>
@@ -1116,7 +1116,7 @@ const TicketModal = ({ ticket, results, lotteries, globalSettings, users, onClos
               <QRCode value={`ticket:${ticket.id}`} size={80} />
             </div>
             <div className="text-center">
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-800">Â¡Buena Suerte!</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-800">¡Buena Suerte!</p>
               <p className="text-[10px] font-mono uppercase text-gray-400 max-w-[200px] leading-relaxed">Este comprobante es indispensable para reclamar su premio.</p>
             </div>
           </div>
@@ -1160,7 +1160,7 @@ const Login = () => {
 
   const handleResetPassword = async () => {
     if (!username) {
-      toast.error('Ingrese su correo para restablecer la contraseÃ±a');
+      toast.error('Ingrese su correo para restablecer la contraseña');
       return;
     }
     const cleanUsername = username.trim().toLowerCase().replace(/\s/g, '');
@@ -1185,16 +1185,16 @@ const Login = () => {
     console.log("handleCredentialsLogin triggered", { username });
     
     if (!username || !password) {
-      toast.error('Ingrese usuario y contraseÃ±a');
+      toast.error('Ingrese usuario y contraseña');
       return;
     }
     
     setLoading(true);
-    const toastId = toast.loading('Iniciando sesiÃ³n...');
+    const toastId = toast.loading('Iniciando sesión...');
     
     try {
       if (!auth) {
-        throw new Error("Firebase Auth no estÃ¡ inicializado");
+        throw new Error("Firebase Auth no está inicializado");
       }
 
       const cleanUsername = username.trim().toLowerCase().replace(/\s/g, '');
@@ -1228,29 +1228,29 @@ const Login = () => {
         if ((profile.status || 'active') !== 'active') {
           await signOut(auth);
           localStorage.removeItem('sessionBusinessDay');
-          toast.error('Tu usuario estÃ¡ inactivo. Contacta al administrador.');
+          toast.error('Tu usuario está inactivo. Contacta al administrador.');
           return;
         }
       }
       console.log("User signed in successfully:", userCredential.user.uid);
       localStorage.setItem('sessionBusinessDay', format(getBusinessDate(), 'yyyy-MM-dd'));
       
-      toast.success('SesiÃ³n iniciada', { id: toastId });
+      toast.success('Sesión iniciada', { id: toastId });
     } catch (error: any) {
       console.error("Auth failed error details:", error);
       let errorMessage = "Credenciales incorrectas";
       
       if (error.code === 'auth/invalid-credential') {
-        errorMessage = "Credenciales incorrectas (usuario o contraseÃ±a no coinciden). Si olvidÃ³ su clave, use el botÃ³n de recuperar.";
+        errorMessage = "Credenciales incorrectas (usuario o contraseña no coinciden). Si olvidó su clave, use el botón de recuperar.";
         if (!username.includes('@')) {
           errorMessage += ". Verifique si debe usar su correo completo (ej: @gmail.com)";
         }
       } else if (error.code === 'auth/invalid-email') {
-        errorMessage = "El formato del correo no es vÃ¡lido";
+        errorMessage = "El formato del correo no es válido";
       } else if (error.code === 'auth/network-request-failed') {
-        errorMessage = "Error de red. Verifique su conexiÃ³n a internet.";
+        errorMessage = "Error de red. Verifique su conexión a internet.";
       } else if (error.code === 'auth/operation-not-allowed') {
-        errorMessage = "El inicio de sesiÃ³n con correo/contraseÃ±a no estÃ¡ habilitado en Firebase";
+        errorMessage = "El inicio de sesión con correo/contraseña no está habilitado en Firebase";
       } else if (error.message) {
         errorMessage = `Error: ${error.message}`;
       }
@@ -1281,7 +1281,7 @@ const Login = () => {
             <span>Chance Pro</span>
           </h1>
           <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-[0.2em] mt-2">
-            <span>Sistema de GestiÃ³n v1.0.0</span>
+            <span>Sistema de Gestión v1.0.0</span>
           </p>
         </div>
         
@@ -1303,7 +1303,7 @@ const Login = () => {
           </div>
           <div className="space-y-2">
             <label className="block text-[10px] font-mono uppercase tracking-widest text-muted-foreground ml-1">
-              <span>ContraseÃ±a</span>
+              <span>Contraseña</span>
             </label>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -1312,7 +1312,7 @@ const Login = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 p-4 pl-12 rounded-xl font-mono text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-muted-foreground/30"
-                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                placeholder="••••••••"
               />
             </div>
           </div>
@@ -1323,7 +1323,7 @@ const Login = () => {
               onClick={handleResetPassword}
               className="text-[10px] font-mono uppercase tracking-widest text-primary hover:underline"
             >
-              <span>Â¿OlvidÃ³ su contraseÃ±a?</span>
+              <span>¿Olvidó su contraseña?</span>
             </button>
           </div>
 
@@ -1401,7 +1401,7 @@ const LotterySelectorModal = ({ show, lotteries, onSelect, onClose }: {
           <h3 className="text-xl font-black uppercase tracking-tighter italic">Seleccionar Sorteo</h3>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg"><X className="w-5 h-5" /></button>
         </div>
-        <p className="text-xs text-muted-foreground mb-6 uppercase font-mono tracking-widest">Â¿Para quÃ© sorteo desea duplicar esta lista?</p>
+        <p className="text-xs text-muted-foreground mb-6 uppercase font-mono tracking-widest">¿Para qué sorteo desea duplicar esta lista?</p>
         <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
           {lotteries.filter(l => l.active).map(lot => (
             <button
@@ -1614,14 +1614,14 @@ const LotteryModal = ({ show, lottery, onSave, onClose, globalSettings }: {
         
         <div className="space-y-6">
           <div className="space-y-4">
-            <h4 className="text-[10px] font-mono font-bold uppercase text-primary border-b border-white/10 pb-1">InformaciÃ³n BÃ¡sica</h4>
+            <h4 className="text-[10px] font-mono font-bold uppercase text-primary border-b border-white/10 pb-1">Información Básica</h4>
             <div>
               <label className="text-[10px] font-mono uppercase text-muted-foreground block mb-1">Nombre del Sorteo</label>
               <input 
                 type="text" 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ej: LoterÃ­a de MedellÃ­n"
+                placeholder="Ej: Lotería de Medellín"
                 className="w-full bg-white/5 border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -1757,7 +1757,7 @@ const GlobalSettingsModal = ({ show, settings, onSave, onClose }: {
       >
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-black uppercase tracking-tighter italic">
-            ConfiguraciÃ³n Global de Premios
+            Configuración Global de Premios
           </h3>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg"><X className="w-5 h-5" /></button>
         </div>
@@ -1771,13 +1771,13 @@ const GlobalSettingsModal = ({ show, settings, onSave, onClose }: {
                 onClick={handleAddPrice}
                 className="flex items-center gap-1 text-[9px] font-bold uppercase bg-primary/20 text-primary px-2 py-1 rounded hover:bg-primary/30 transition-colors"
               >
-                <Plus className="w-3 h-3" /> AÃ±adir Precio
+                <Plus className="w-3 h-3" /> Añadir Precio
               </button>
             </div>
             
             <div className="space-y-4">
               {chancePrices.length === 0 && (
-                <p className="text-xs text-muted-foreground italic text-center py-4">No hay precios configurados. AÃ±ada uno para vender Chance.</p>
+                <p className="text-xs text-muted-foreground italic text-center py-4">No hay precios configurados. Añada uno para vender Chance.</p>
               )}
               {chancePrices.map((config, idx) => (
                 <div key={idx} className="bg-white/5 border border-border rounded-xl p-4 relative group">
@@ -1835,14 +1835,14 @@ const GlobalSettingsModal = ({ show, settings, onSave, onClose }: {
           {/* Pales Section */}
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-white/10 pb-1">
-              <h4 className="text-[10px] font-mono font-bold uppercase text-primary">ConfiguraciÃ³n de Pales (PL)</h4>
+              <h4 className="text-[10px] font-mono font-bold uppercase text-primary">Configuración de Pales (PL)</h4>
               <button 
                 onClick={() => setPalesEnabled(!palesEnabled)}
                 className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase transition-all border ${
                   palesEnabled ? 'bg-green-500/20 border-green-500 text-green-500' : 'bg-red-500/20 border-red-500 text-red-500'
                 }`}
               >
-                {palesEnabled ? 'âœ“ Activado' : 'Desactivado'}
+                {palesEnabled ? 'Sí Activado' : 'Desactivado'}
               </button>
             </div>
             
@@ -1882,14 +1882,14 @@ const GlobalSettingsModal = ({ show, settings, onSave, onClose }: {
           {/* Billete Section */}
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-white/10 pb-1">
-              <h4 className="text-[10px] font-mono font-bold uppercase text-primary">ConfiguraciÃ³n de Billetes (BL - 4 Cifras)</h4>
+              <h4 className="text-[10px] font-mono font-bold uppercase text-primary">Configuración de Billetes (BL - 4 Cifras)</h4>
               <button 
                 onClick={() => setBilletesEnabled(!billetesEnabled)}
                 className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase transition-all border ${
                   billetesEnabled ? 'bg-green-500/20 border-green-500 text-green-500' : 'bg-red-500/20 border-red-500 text-red-500'
                 }`}
               >
-                {billetesEnabled ? 'âœ“ Activado' : 'Desactivado'}
+                {billetesEnabled ? 'Sí Activado' : 'Desactivado'}
               </button>
             </div>
             
@@ -1927,7 +1927,7 @@ const GlobalSettingsModal = ({ show, settings, onSave, onClose }: {
                           />
                         </div>
                         <div className="bg-black/20 p-2 rounded-lg">
-                          <label className="text-[8px] font-mono uppercase text-muted-foreground block mb-1">Ãšltimas 3</label>
+                          <label className="text-[8px] font-mono uppercase text-muted-foreground block mb-1">?ltimas 3</label>
                           <input 
                             type="number" 
                             value={Number.isNaN(prizes.last3) ? '' : prizes.last3}
@@ -1951,7 +1951,7 @@ const GlobalSettingsModal = ({ show, settings, onSave, onClose }: {
                           />
                         </div>
                         <div className="bg-black/20 p-2 rounded-lg">
-                          <label className="text-[8px] font-mono uppercase text-muted-foreground block mb-1">Ãšltimas 2</label>
+                          <label className="text-[8px] font-mono uppercase text-muted-foreground block mb-1">?ltimas 2</label>
                           <input 
                             type="number" 
                             value={Number.isNaN(prizes.last2) ? '' : prizes.last2}
@@ -2122,7 +2122,7 @@ const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targ
         liquidated: false
       });
       await batch.commit();
-      toast.success('InyecciÃ³n aÃ±adida');
+      toast.success('Inyección añadida');
       onClose();
       setTargetEmail('');
       setAmount('');
@@ -2143,7 +2143,7 @@ const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targ
       >
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-black uppercase tracking-tighter italic">
-            AÃ±adir InyecciÃ³n
+            Añadir Inyección
           </h3>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg"><X className="w-5 h-5" /></button>
         </div>
@@ -2154,7 +2154,7 @@ const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targ
               onClick={() => setType('injection')}
               className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all bg-primary text-primary-foreground`}
             >
-              InyecciÃ³n
+              Inyección
             </button>
           </div>
 
@@ -2195,7 +2195,7 @@ const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targ
               type === 'injection' ? 'bg-primary text-primary-foreground hover:brightness-110' : type === 'payment' ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-red-500 text-white hover:bg-red-600'
             }`}
           >
-            {loading ? 'Guardando...' : (type === 'injection' ? 'Guardar InyecciÃ³n' : type === 'payment' ? 'Guardar Abono' : 'Guardar Deuda')}
+            {loading ? 'Guardando...' : (type === 'injection' ? 'Guardar Inyección' : type === 'payment' ? 'Guardar Abono' : 'Guardar Deuda')}
           </button>
         </div>
       </motion.div>
@@ -2274,12 +2274,12 @@ const UserModal = ({ show, userProfile, onSave, onClose, currentUserRole, canCre
 
           {!userProfile && (
             <div className="space-y-2">
-            <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">ContraseÃ±a (opcional si ya existe en Auth)</label>
+            <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Contraseña (opcional si ya existe en Auth)</label>
               <input 
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="MÃ­nimo 6 caracteres"
+                placeholder="Mínimo 6 caracteres"
                 className="w-full bg-white/5 border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
               />
             </div>
@@ -2288,7 +2288,7 @@ const UserModal = ({ show, userProfile, onSave, onClose, currentUserRole, canCre
           {!userProfile && (
             <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl">
               <p className="text-xs text-primary font-mono uppercase tracking-widest text-center">
-                El ID de Vendedor y el Nombre se generarÃ¡n automÃ¡ticamente al guardar.
+                El ID de Vendedor y el Nombre se generarán automáticamente al guardar.
               </p>
             </div>
           )}
@@ -2332,7 +2332,7 @@ const UserModal = ({ show, userProfile, onSave, onClose, currentUserRole, canCre
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">ComisiÃ³n (%)</label>
+            <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Comisión (%)</label>
             <input 
               type="number" 
               value={Number.isNaN(commissionRate) ? '' : commissionRate}
@@ -2391,7 +2391,7 @@ const UserModal = ({ show, userProfile, onSave, onClose, currentUserRole, canCre
                 return;
               }
               if (!userProfile && password && password.length < 6) {
-                toast.error('La contraseÃ±a debe tener al menos 6 caracteres');
+                toast.error('La contraseña debe tener al menos 6 caracteres');
                 return;
               }
               onSave({ 
@@ -2479,7 +2479,7 @@ const FastEntryModal = ({ show, onAdd, onClose, selectedLotteries, chancePrice, 
           }
 
           if (type === 'PL' && quantity > 5) {
-            invalidTokens.push(`${token} (MÃ¡x 5 comb)`);
+            invalidTokens.push(`${token} (Máx 5 comb)`);
           } else {
             selectedLotteries.forEach(lottery => {
               const existingIdx = validBets.findIndex(b => 
@@ -2522,17 +2522,17 @@ const FastEntryModal = ({ show, onAdd, onClose, selectedLotteries, chancePrice, 
         className="glass-card max-w-2xl w-full p-4 md:p-8 max-h-[95vh] flex flex-col"
       >
         <div className="flex justify-between items-center mb-4 md:mb-6">
-          <h3 className="text-lg md:text-xl font-black uppercase tracking-tighter italic">Copiado RÃ¡pido</h3>
+          <h3 className="text-lg md:text-xl font-black uppercase tracking-tighter italic">Copiado Rápido</h3>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg"><X className="w-5 h-5" /></button>
         </div>
 
         <p className="text-[10px] md:text-xs text-muted-foreground font-mono mb-4">
-          Pegue su lista de nÃºmeros y montos. Formatos soportados: 87-3, 5-34, 88.3, 1123-2, 8939.4. Separados por espacios o saltos de lÃ­nea.
+          Pegue su lista de números y montos. Formatos soportados: 87-3, 5-34, 88.3, 1123-2, 8939.4. Separados por espacios o saltos de línea.
         </p>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 bg-white/5 p-3 rounded-xl border border-border">
           <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Formato: {invertFormat ? 'Cantidad-NÃºmero' : 'NÃºmero-Cantidad'}
+            Formato: {invertFormat ? 'Cantidad-Número' : 'Número-Cantidad'}
           </span>
           <button
             onClick={() => setInvertFormat(!invertFormat)}
@@ -2561,7 +2561,7 @@ const FastEntryModal = ({ show, onAdd, onClose, selectedLotteries, chancePrice, 
 
         {preview.valid.length > 0 && (
           <div className="flex-1 overflow-y-auto mb-6 bg-black/20 rounded-xl p-4 border border-border/50">
-            <h4 className="text-sm font-bold text-green-400 mb-2">Apuestas VÃ¡lidas ({preview.valid.length / selectedLotteries.length} nÃºmeros x {selectedLotteries.length} sorteos)</h4>
+            <h4 className="text-sm font-bold text-green-400 mb-2">Apuestas Válidas ({preview.valid.length / selectedLotteries.length} números x {selectedLotteries.length} sorteos)</h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
               {preview.valid.slice(0, 20).map((bet, i) => (
                 <div key={i} className="text-xs font-mono bg-white/5 p-2 rounded border border-border/50 flex justify-between items-center">
@@ -2573,7 +2573,7 @@ const FastEntryModal = ({ show, onAdd, onClose, selectedLotteries, chancePrice, 
                 </div>
               ))}
               {preview.valid.length > 20 && (
-                <div className="text-xs font-mono text-muted-foreground p-2 col-span-full">...y {preview.valid.length - 20} mÃ¡s</div>
+                <div className="text-xs font-mono text-muted-foreground p-2 col-span-full">...y {preview.valid.length - 20} más</div>
               )}
             </div>
           </div>
@@ -2581,7 +2581,7 @@ const FastEntryModal = ({ show, onAdd, onClose, selectedLotteries, chancePrice, 
 
         {preview.invalid.length > 0 && (
           <div className="mb-6 bg-red-500/10 rounded-xl p-4 border border-red-500/20">
-            <h4 className="text-sm font-bold text-red-400 mb-2">Formatos InvÃ¡lidos ({preview.invalid.length})</h4>
+            <h4 className="text-sm font-bold text-red-400 mb-2">Formatos Inválidos ({preview.invalid.length})</h4>
             <div className="flex flex-wrap gap-2">
               {preview.invalid.map((token, i) => (
                 <span key={i} className="text-xs font-mono bg-red-500/20 text-red-300 px-2 py-1 rounded">{token}</span>
@@ -2596,7 +2596,7 @@ const FastEntryModal = ({ show, onAdd, onClose, selectedLotteries, chancePrice, 
               onAdd(preview.valid);
               onClose();
             } else {
-              toast.error('No hay apuestas vÃ¡lidas para agregar');
+              toast.error('No hay apuestas válidas para agregar');
             }
           }}
           disabled={preview.valid.length === 0}
@@ -2735,7 +2735,7 @@ const LotteryStatsCard: React.FC<LotteryStatsCardProps> = ({
             <h3 className="text-base font-medium text-[#E5E7EB] tracking-wide">{cleanText(lottery.name)}</h3>
             <div className="flex items-center gap-2 text-sm text-[#9CA3AF] mt-1 font-normal">
               <span>{lottery.drawTime}</span>
-              <span>â€¢</span>
+              <span>•</span>
               <span>{historyDate}</span>
             </div>
           </div>
@@ -2952,9 +2952,9 @@ const cleanText = (text: string) => {
   // Replace common corrupted patterns found in the database
   // More aggressive regex to catch variations of the corrupted characters
   return text
-    .replace(/[Ã˜Ã<][^a-zA-Z0-9\s()\-:/]*/g, 'LoterÃ­a')
-    .replace(/LoterÃ­a+/g, 'LoterÃ­a')
-    .replace(/LoterÃ­a\s+LoterÃ­a/g, 'LoterÃ­a')
+    .replace(/[\u00D8\u00DD<][^a-zA-Z0-9\s()\-:/]*/g, 'Lotería')
+    .replace(/Lotería+/g, 'Lotería')
+    .replace(/Lotería\s+Lotería/g, 'Lotería')
     .trim();
 };
 
@@ -3210,7 +3210,7 @@ function App() {
       setSelectedUserToLiquidate(user.email.toLowerCase());
     }
 
-    toast.info(`Nuevo dÃ­a operativo iniciado: ${businessDayKey}`);
+    toast.info(`Nuevo día operativo iniciado: ${businessDayKey}`);
   }, [archiveDate, autoResetStateOnBusinessDayChange, businessDayKey, historyDate, liquidationDate, recoveryDate, user?.email, userProfile?.role]);
 
   // Inactivity timeout logic
@@ -3225,7 +3225,7 @@ function App() {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
         handleLogout();
-        toast.error('SesiÃ³n cerrada por inactividad');
+        toast.error('Sesión cerrada por inactividad');
       }, timeoutMs);
     };
 
@@ -3462,7 +3462,7 @@ function App() {
             setUser(null);
             setUserProfile(null);
             setLoading(false);
-            toast.info('Debe iniciar sesiÃ³n nuevamente por cambio de dÃ­a operativo.');
+            toast.info('Debe iniciar sesión nuevamente por cambio de día operativo.');
             return;
           }
           markSessionDay();
@@ -3538,7 +3538,7 @@ function App() {
       if (!isSessionValid()) {
         console.log('Session expired by operational day change. Signing out.');
         handleLogout();
-        toast.info('Su sesiÃ³n expirÃ³ por cambio de dÃ­a operativo. Inicie sesiÃ³n nuevamente.');
+        toast.info('Su sesión expiró por cambio de día operativo. Inicie sesión nuevamente.');
       }
     }, 60000); // Check every minute
     
@@ -3724,13 +3724,13 @@ function App() {
         localStorage.setItem(autoCleanupStorageKey, todayKey);
 
         if (result.deletedCount > 0 || !result.archiveAlreadyExists) {
-          toast.success(`Limpieza automática 4:30 AM completada (${targetBusinessDay})`);
+          toast.success(`Limpieza autom?tica 4:30 AM completada (${targetBusinessDay})`);
         } else {
-          toast.info(`Limpieza automática validada (${targetBusinessDay}, sin cambios pendientes)`);
+          toast.info(`Limpieza autom?tica validada (${targetBusinessDay}, sin cambios pendientes)`);
         }
       } catch (error) {
-        console.error('Error en limpieza automática 4:30 AM:', error);
-        toast.error('Falló la limpieza automática de las 4:30 AM. Se reintentará automáticamente.');
+        console.error('Error en limpieza autom?tica 4:30 AM:', error);
+        toast.error('Fall? la limpieza autom?tica de las 4:30 AM. Se reintentar? autom?ticamente.');
       } finally {
         autoCleanupRunningRef.current = false;
       }
@@ -4200,13 +4200,13 @@ function App() {
 
   const addToCart = () => {
     if (!number || !quantity) {
-      toast.error('Ingrese nÃºmero y cantidad');
+      toast.error('Ingrese número y cantidad');
       return;
     }
 
     const qInt = parseInt(quantity);
     if (isNaN(qInt) || qInt <= 0) {
-      toast.error('Cantidad invÃ¡lida');
+      toast.error('Cantidad inválida');
       return;
     }
 
@@ -4225,11 +4225,11 @@ function App() {
     }
 
     if (betType === 'PL' && !globalSettings.palesEnabled) {
-      toast.error('Pales estÃ¡n desactivados');
+      toast.error('Pales están desactivados');
       return;
     }
     if (betType === 'BL' && !globalSettings.billetesEnabled) {
-      toast.error('Billetes estÃ¡n desactivados');
+      toast.error('Billetes están desactivados');
       return;
     }
 
@@ -4253,7 +4253,7 @@ function App() {
     }
     
     if (lotteriesToBuy.size === 0) {
-      toast.error('Seleccione al menos un sorteo vÃ¡lido');
+      toast.error('Seleccione al menos un sorteo válido');
       return;
     }
 
@@ -4263,7 +4263,7 @@ function App() {
     } else if (betType === 'BL') {
       calculatedAmount = parseFloat(plAmount); // Reusing plAmount for BL investment
       if (isNaN(calculatedAmount) || calculatedAmount < 0.10) {
-        toast.error('InversiÃ³n mÃ­nima para Billete (BL) es USD 0.10');
+        toast.error('Inversión mínima para Billete (BL) es USD 0.10');
         return;
       }
     } else {
@@ -4274,7 +4274,7 @@ function App() {
         return;
       }
       if (qInt > 5) {
-        toast.error('MÃ¡ximo 5 combinaciones por nÃºmero en Pale (PL)');
+        toast.error('Máximo 5 combinaciones por número en Pale (PL)');
         return;
       }
       calculatedAmount = qInt * costPerUnit;
@@ -4294,7 +4294,7 @@ function App() {
           .reduce((acc, b) => acc + b.quantity, 0);
 
         if (inCart + inTickets + qInt > 5) {
-          toast.error(`Excede lÃ­mite de 5 combinaciones para #${number} en ${lot}`);
+          toast.error(`Excede límite de 5 combinaciones para #${number} en ${lot}`);
           return;
         }
       }
@@ -4347,7 +4347,7 @@ function App() {
         .reduce((acc, b) => acc + b.quantity, 0);
 
       if (inCartOther + inTickets + newQty > 5) {
-        toast.error(`Excede lÃ­mite de 5 combinaciones para #${num} en ${lot}`);
+        toast.error(`Excede límite de 5 combinaciones para #${num} en ${lot}`);
         return;
       }
     }
@@ -4414,7 +4414,7 @@ function App() {
         return;
       }
       if (!isLotteryOpenForSales(lot)) {
-        toast.error(`El sorteo ${bet.lottery} ya estÃ¡ cerrado.`);
+        toast.error(`El sorteo ${bet.lottery} ya está cerrado.`);
         return;
       }
       const hasResult = results.some(r => cleanText(r.lotteryName) === cleanText(bet.lottery) && r.date === todayStr);
@@ -4451,7 +4451,7 @@ function App() {
         setCustomerName('');
         setShowCheckoutModal(false);
         setShowTicketModal({ ticket: updatedTicket });
-        toast.success('Â¡Venta actualizada con Ã©xito!');
+        toast.success('¡Venta actualizada con éxito!');
       } else {
         // Create new ticket
         const sequenceNumber = getDailySequence();
@@ -4491,7 +4491,7 @@ function App() {
         setCustomerName('');
         setShowCheckoutModal(false);
         setShowTicketModal({ ticket: newTicket });
-        toast.success('Â¡Venta realizada con Ã©xito!');
+        toast.success('¡Venta realizada con éxito!');
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'tickets');
@@ -4525,7 +4525,7 @@ function App() {
       let closeH = parseInt(timeParts[1]);
       let closeM = parseInt(timeParts[2]);
       
-      // Si la hora de cierre es antes de la 1 AM, tambiÃ©n la ajustamos
+      // Si la hora de cierre es antes de la 1 AM, también la ajustamos
       const adjustedCloseH = closeH < 1 ? closeH + 24 : closeH;
       const closeTimeVal = adjustedCloseH * 60 + closeM;
 
@@ -4545,14 +4545,14 @@ function App() {
     if (isNaN(ticketDate.getTime())) return true; // Treat invalid dates as closed
     const now = new Date();
     
-    // Definir el "dÃ­a del sorteo" (que empieza a la 1 AM)
+    // Definir el "día del sorteo" (que empieza a la 1 AM)
     const getLotteryDay = (date: Date) => {
       const d = new Date(date);
       d.setHours(d.getHours() - 1);
       return format(d, 'yyyy-MM-dd');
     };
 
-    // Si no es el mismo "dÃ­a de sorteo", estÃ¡ cerrado
+    // Si no es el mismo "día de sorteo", está cerrado
     if (getLotteryDay(ticketDate) !== getLotteryDay(now)) return true;
 
     // Verificar cada apuesta del ticket
@@ -4640,21 +4640,21 @@ function App() {
           const mult = globalSettings.pl12Multiplier || 1000;
           const p = (bet.amount || 0) * mult;
           totalPrize += p;
-          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r2, matchType: 'PalÃ©' });
+          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r2, matchType: 'Palé' });
         }
         // 1st and 3rd
         if ((n1 === r1 && n2 === r3) || (n1 === r3 && n2 === r1)) {
           const mult = globalSettings.pl13Multiplier || 1000;
           const p = (bet.amount || 0) * mult;
           totalPrize += p;
-          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r3, matchType: 'PalÃ©' });
+          winningBets.push({ idx, prize: p, rank: 1, lotteryName: bet.lottery, winningNumber: r1 + '-' + r3, matchType: 'Palé' });
         }
         // 2nd and 3rd
         if ((n1 === r2 && n2 === r3) || (n1 === r3 && n2 === r2)) {
           const mult = globalSettings.pl23Multiplier || 200;
           const p = (bet.amount || 0) * mult;
           totalPrize += p;
-          winningBets.push({ idx, prize: p, rank: 2, lotteryName: bet.lottery, winningNumber: r2 + '-' + r3, matchType: 'PalÃ©' });
+          winningBets.push({ idx, prize: p, rank: 2, lotteryName: bet.lottery, winningNumber: r2 + '-' + r3, matchType: 'Palé' });
         }
       } else if (bet.type === 'BL' && globalSettings.billetesEnabled) {
         // Billete: 4 digits. Check against first, second, and third prizes
@@ -4697,12 +4697,12 @@ function App() {
           if (betNum.slice(1, 4) === winningNum.slice(1, 4)) {
             const p = amount * prizeMults.last3;
             totalPrize += p;
-            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '3 Ãºltimas' });
+            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '3 últimas' });
           } else if (betNum.slice(2, 4) === winningNum.slice(2, 4)) {
             // Last 2 digits
             const p = amount * prizeMults.last2;
             totalPrize += p;
-            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '2 Ãºltimas' });
+            winningBets.push({ idx, prize: p, rank: prizeRank, lotteryName: bet.lottery, winningNumber: winningNum, matchType: '2 últimas' });
           }
         };
 
@@ -5069,7 +5069,7 @@ function App() {
     setConfirmModal({
       show: true,
       title: 'Borrar Venta',
-      message: 'Â¿EstÃ¡ seguro de borrar esta venta? Se eliminarÃ¡ permanentemente de la base de datos.',
+      message: '¿Está seguro de borrar esta venta? Se eliminará permanentemente de la base de datos.',
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, 'tickets', id));
@@ -5089,7 +5089,7 @@ function App() {
       ? format(ticket.timestamp.toDate(), 'dd/MM/yyyy HH:mm') 
       : format(new Date(), 'dd/MM/yyyy HH:mm');
     
-    let message = `*CHANCE PRO - TICKET DE LOTERÃA*\n`;
+    let message = `*CHANCE PRO - TICKET DE LOTERÍA*\n`;
     message += `--------------------------------\n`;
     message += `*Ticket:* #${ticketId}\n`;
     message += `*Vendedor:* ${ticket.sellerCode || '---'}\n`;
@@ -5111,10 +5111,10 @@ function App() {
     message += `--------------------------------\n`;
     message += `*TOTAL:* $${totalAmount.toFixed(2)} USD\n`;
     message += `--------------------------------\n`;
-    message += `_Â¡Buena Suerte!_`;
+    message += `_¡Buena Suerte!_`;
 
     const shareData = {
-      title: 'Ticket de LoterÃ­a - Chance Pro',
+      title: 'Ticket de Lotería - Chance Pro',
       text: message
     };
 
@@ -5171,11 +5171,11 @@ function App() {
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error('Las contraseÃ±as no coinciden');
+      toast.error('Las contraseñas no coinciden');
       return;
     }
     if (newPassword.length < 6) {
-      toast.error('La contraseÃ±a debe tener al menos 6 caracteres');
+      toast.error('La contraseña debe tener al menos 6 caracteres');
       return;
     }
 
@@ -5183,7 +5183,7 @@ function App() {
     try {
       if (auth.currentUser) {
         await updatePassword(auth.currentUser, newPassword);
-        toast.success('ContraseÃ±a actualizada correctamente');
+        toast.success('Contraseña actualizada correctamente');
         setNewPassword('');
         setConfirmPassword('');
       } else {
@@ -5192,9 +5192,9 @@ function App() {
     } catch (error: any) {
       console.error('Error updating password:', error);
       if (error.code === 'auth/requires-recent-login') {
-        toast.error('Por seguridad, debe cerrar sesiÃ³n e iniciarla de nuevo para cambiar su contraseÃ±a.');
+        toast.error('Por seguridad, debe cerrar sesión e iniciarla de nuevo para cambiar su contraseña.');
       } else {
-        toast.error(`Error: ${error.message || 'No se pudo actualizar la contraseÃ±a'}`);
+        toast.error(`Error: ${error.message || 'No se pudo actualizar la contraseña'}`);
       }
     } finally {
       setIsUpdatingPassword(false);
@@ -5210,13 +5210,13 @@ function App() {
     }
 
      if (!canUpdatePersonalChancePrice) {
-      toast.error('Solo puedes cambiar este precio antes de tu primera venta del dÃ­a o despuÃ©s de ser liquidado');
+      toast.error('Solo puedes cambiar este precio antes de tu primera venta del día o después de ser liquidado');
       return;
     }
 
     const selectedConfig = globalSettings.chancePrices?.find(cp => Math.abs(cp.price - personalChancePrice) < 0.001);
     if (!selectedConfig) {
-      toast.error('Seleccione un precio de chance vÃ¡lido');
+      toast.error('Seleccione un precio de chance válido');
       return;
     }
 
@@ -5249,7 +5249,7 @@ function App() {
     if (userProfileData.role === 'admin') {
       const adminCount = users.filter(u => u.role === 'admin' && u.email !== authEmail).length;
       if (adminCount >= 5) {
-        toast.error('LÃ­mite mÃ¡ximo de 5 administradores alcanzado');
+        toast.error('Límite máximo de 5 administradores alcanzado');
         return;
       }
     }
@@ -5257,7 +5257,7 @@ function App() {
     if (userProfileData.role === 'ceo') {
       const ceoCount = users.filter(u => u.role === 'ceo' && u.email !== authEmail).length;
       if (ceoCount >= 3) {
-        toast.error('LÃ­mite mÃ¡ximo de 3 CEO alcanzado');
+        toast.error('Límite máximo de 3 CEO alcanzado');
         return;
       }
     }
@@ -5267,7 +5267,7 @@ function App() {
       if (!userProfileData.sellerId) {
         await runTransaction(db, async (transaction) => {
           const settingsDoc = await transaction.get(doc(db, 'settings', 'global'));
-          if (!settingsDoc.exists()) throw new Error("ConfiguraciÃ³n global no encontrada");
+          if (!settingsDoc.exists()) throw new Error("Configuración global no encontrada");
           
           const nextNum = settingsDoc.data().nextSellerNumber || 2;
           const rolePrefix =
@@ -5291,7 +5291,7 @@ function App() {
 
       if (password) {
         if (!secondaryAuth) {
-          throw new Error('Servicio de autenticaciÃ³n secundaria no disponible');
+          throw new Error('Servicio de autenticación secundaria no disponible');
         }
         // Create user in Firebase Auth using secondary app to avoid signing out the CEO
         try {
@@ -5337,13 +5337,13 @@ function App() {
       if (error.code === 'auth/email-already-in-use') {
         toast.error('El usuario ya existe');
       } else if (error.code === 'auth/invalid-email') {
-        toast.error('El formato del usuario es invÃ¡lido');
+        toast.error('El formato del usuario es inválido');
       } else if (error.code === 'auth/weak-password') {
-        toast.error('La contraseÃ±a es muy dÃ©bil');
+        toast.error('La contraseña es muy débil');
       } else if (error.code === 'auth/admin-restricted-operation') {
-        toast.error('Error: El registro de usuarios estÃ¡ restringido. Por favor, habilite "Permitir que los usuarios se registren" en la consola de Firebase (Authentication > Settings > User actions).');
+        toast.error('Error: El registro de usuarios está restringido. Por favor, habilite "Permitir que los usuarios se registren" en la consola de Firebase (Authentication > Settings > User actions).');
       } else if (error.code === 'auth/operation-not-allowed') {
-        toast.error('El registro de usuarios no estÃ¡ habilitado en Firebase');
+        toast.error('El registro de usuarios no está habilitado en Firebase');
       } else {
         toast.error(`Error: ${error.message || 'No se pudo guardar el usuario'}`);
       }
@@ -5354,7 +5354,7 @@ function App() {
     setConfirmModal({
       show: true,
       title: 'Eliminar Usuario',
-      message: 'Â¿EstÃ¡ seguro de eliminar este usuario? PerderÃ¡ acceso al sistema.',
+      message: '¿Está seguro de eliminar este usuario? Perderá acceso al sistema.',
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, 'users', email));
@@ -5385,7 +5385,7 @@ function App() {
     setConfirmModal({
       show: true,
       title: 'Editar Venta',
-      message: 'Se cargarÃ¡n las apuestas al carrito para modificarlas. El ticket original se mantendrÃ¡ hasta que confirmes los cambios. Â¿Continuar?',
+      message: 'Se cargarán las apuestas al carrito para modificarlas. El ticket original se mantendrá hasta que confirmes los cambios. ¿Continuar?',
       onConfirm: () => {
         const uniqueTicketLotteries = Array.from(new Set(
           (ticket.bets || [])
@@ -5406,7 +5406,7 @@ function App() {
           setSelectedLottery(uniqueTicketLotteries[0] || '');
         }
         setActiveTab('sales');
-        toast.info('Modo edición activado. Realice los cambios y genere el ticket para actualizar.');
+        toast.info('Modo edici?n activado. Realice los cambios y genere el ticket para actualizar.');
       }
     });
   };
@@ -5415,7 +5415,7 @@ function App() {
     setEditingTicketId(null);
     setCart([]);
     setCustomerName('');
-    toast.info('EdiciÃ³n cancelada');
+    toast.info('Edición cancelada');
   };
 
   const editCartItem = (idx: number) => {
@@ -5438,7 +5438,7 @@ function App() {
     try {
       const normalizedName = normalizeLotteryName(lotteryData.name || '');
       if (!normalizedName) {
-        toast.error('Ingrese un nombre de sorteo vÃ¡lido');
+        toast.error('Ingrese un nombre de sorteo válido');
         return;
       }
 
@@ -5448,19 +5448,19 @@ function App() {
       });
 
       if (hasDuplicateName) {
-        toast.error('Ya existe un sorteo con ese nombre. Use un nombre Ãºnico.');
+        toast.error('Ya existe un sorteo con ese nombre. Use un nombre único.');
         return;
       }
 
       if (editingLottery) {
         await updateDoc(doc(db, 'lotteries', editingLottery.id), lotteryData);
-        toast.success('LoterÃ­a actualizada');
+        toast.success('Lotería actualizada');
       } else {
         await addDoc(collection(db, 'lotteries'), {
           ...lotteryData,
           active: true
         });
-        toast.success('LoterÃ­a agregada');
+        toast.success('Lotería agregada');
       }
       setShowLotteryModal(false);
       setEditingLottery(null);
@@ -5472,7 +5472,7 @@ function App() {
   const toggleLotteryActive = async (lottery: Lottery) => {
     try {
       await updateDoc(doc(db, 'lotteries', lottery.id), { active: !lottery.active });
-      toast.success(`LoterÃ­a ${lottery.active ? 'pausada' : 'activada'}`);
+      toast.success(`Lotería ${lottery.active ? 'pausada' : 'activada'}`);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `lotteries/${lottery.id}`);
     }
@@ -5481,12 +5481,12 @@ function App() {
   const deleteLottery = async (id: string) => {
     setConfirmModal({
       show: true,
-      title: 'Eliminar LoterÃ­a',
-      message: 'Â¿EstÃ¡ seguro de eliminar esta loterÃ­a? Esta acciÃ³n no se puede deshacer.',
+      title: 'Eliminar Lotería',
+      message: '¿Está seguro de eliminar esta lotería? Esta acción no se puede deshacer.',
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, 'lotteries', id));
-          toast.success('LoterÃ­a eliminada');
+          toast.success('Lotería eliminada');
         } catch (error) {
           handleFirestoreError(error, OperationType.DELETE, `lotteries/${id}`);
         }
@@ -5541,7 +5541,7 @@ function App() {
 
     const selectedLottery = sortedLotteries.find(lottery => lottery.id === resultFormLotteryId);
     if (!selectedLottery) {
-      toast.error('Seleccione un sorteo vÃ¡lido');
+      toast.error('Seleccione un sorteo válido');
       return;
     }
 
@@ -5622,7 +5622,7 @@ function App() {
     setConfirmModal({
       show: true,
       title: 'Eliminar Resultado',
-      message: 'Â¿EstÃ¡ seguro de eliminar este resultado? Esta acciÃ³n no se puede deshacer.',
+      message: '¿Está seguro de eliminar este resultado? Esta acción no se puede deshacer.',
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, 'results', id));
@@ -5668,7 +5668,7 @@ function App() {
       return;
     }
     if (liquidationDate !== businessDayKey && isLiquidationDataLoading) {
-      toast.error('Espera a que termine la carga de datos histÃ³ricos');
+      toast.error('Espera a que termine la carga de datos históricos');
       return;
     }
 
@@ -5712,12 +5712,12 @@ function App() {
 
     setConfirmModal({
       show: true,
-      title: selectedLiquidationSettlement ? 'Actualizar LiquidaciÃ³n' : 'Confirmar LiquidaciÃ³n Diaria',
-      message: `Â¿EstÃ¡ seguro de ${actionLabel} a ${userToLiquidate.name} para el dÃ­a ${liquidationDate}? \
+      title: selectedLiquidationSettlement ? 'Actualizar Liquidación' : 'Confirmar Liquidación Diaria',
+      message: `¿Está seguro de ${actionLabel} a ${userToLiquidate.name} para el día ${liquidationDate}? \
 \
 Utilidad Neta: USD ${netProfit.toFixed(2)}\
 Monto Entregado: USD ${paid.toFixed(2)}\
-Deuda AÃ±adida: USD ${debtAdded.toFixed(2)}\
+Deuda Añadida: USD ${debtAdded.toFixed(2)}\
 Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
       onConfirm: async () => {
         try {
@@ -5733,7 +5733,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
             ));
             const lowerMatches = settlementQueryByLower.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Settlement));
             if (lowerMatches.length > 1) {
-              console.warn('Se encontraron mÃºltiples settlements para el mismo usuario+fecha. Se actualizarÃ¡ el mÃ¡s reciente.', lowerMatches.map(item => item.id));
+              console.warn('Se encontraron múltiples settlements para el mismo usuario+fecha. Se actualizará el más reciente.', lowerMatches.map(item => item.id));
             }
             existingSettlement = lowerMatches.sort((a, b) => {
               const aTime = a.timestamp?.toDate?.()?.getTime?.() ?? (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0);
@@ -5779,7 +5779,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
 
           const effectiveSettlementId = settlementId || existingSettlement?.id || '';
           console.log('Settlement guardado:', effectiveSettlementId);
-          console.log('Tickets a liquidar (solo dÃ­a actual):', ticketsToLiquidate.length);
+          console.log('Tickets a liquidar (solo día actual):', ticketsToLiquidate.length);
 
           const userRef = doc(db, 'users', userToLiquidate.email);
           await updateDoc(userRef, { currentDebt: finalNewTotalDebt });
@@ -5883,15 +5883,15 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
           }
 
           if (secondaryWarnings.length > 0 && isCurrentOperationalDate) {
-            toast.warning(`LiquidaciÃ³n guardada. Hubo incidencias secundarias en: ${secondaryWarnings.join(', ')}`);
+            toast.warning(`Liquidación guardada. Hubo incidencias secundarias en: ${secondaryWarnings.join(', ')}`);
           } else {
-            toast.success(existingSettlement ? 'LiquidaciÃ³n actualizada correctamente' : 'LiquidaciÃ³n guardada correctamente');
+            toast.success(existingSettlement ? 'Liquidación actualizada correctamente' : 'Liquidación guardada correctamente');
           }
 
           setAmountPaid(String(paid));
         } catch (error) {
           console.error('ERROR LIQUIDACION:', error);
-          alert('Error al guardar la liquidaciÃ³n. Revisa conexiÃ³n o permisos.');
+          alert('Error al guardar la liquidación. Revisa conexión o permisos.');
           handleFirestoreError(error, OperationType.WRITE, 'settlements');
         }
       }
@@ -5923,7 +5923,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
     setIsGeneratingYesterdayReport(true);
 
     try {
-      const [ticketsSnap, injectionsSnap, settlementsSnap, resultsSnap] = await Promise.all([
+      const [ticketsSnap, injectionsSnap, settlementsSnap, resultsSnap, archivesSnap] = await Promise.all([
         getDocs(query(
           collection(db, 'tickets'),
           where('timestamp', '>=', start),
@@ -5947,17 +5947,59 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
           where('date', '>=', reportStartDate),
           where('date', '<=', reportEndDate),
           limit(300)
+        )),
+        getDocs(query(
+          collection(db, 'daily_archives'),
+          where('date', '>=', reportStartDate),
+          where('date', '<=', reportEndDate),
+          limit(120)
         ))
       ]);
 
-      const reportTickets = ticketsSnap.docs
-        .map(d => ({ id: d.id, ...d.data() } as LotteryTicket))
-        .filter(t => t.status === 'active' || t.status === 'winner');
-      const reportInjections = injectionsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Injection));
-      const reportSettlements = settlementsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Settlement));
-      const reportResults = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() } as LotteryResult));
+      const archivedPayload = archivesSnap.docs.map(d => d.data() as {
+        date?: string;
+        tickets?: LotteryTicket[];
+        injections?: Injection[];
+        settlements?: Settlement[];
+        results?: LotteryResult[];
+      });
+      const archivedTickets = archivedPayload.flatMap(item => item.tickets || []);
+      const archivedInjections = archivedPayload.flatMap(item => item.injections || []);
+      const archivedSettlements = archivedPayload.flatMap(item => item.settlements || []);
+      const archivedResults = archivedPayload.flatMap(item => item.results || []);
+
+      const dedupeById = <T extends { id?: string }>(items: T[]) => {
+        const map = new Map<string, T>();
+        items.forEach((item, index) => {
+          const key = item?.id || `no-id-${index}`;
+          if (!map.has(key)) map.set(key, item);
+        });
+        return Array.from(map.values());
+      };
+
+      const reportTickets = dedupeById([
+        ...ticketsSnap.docs.map(d => ({ id: d.id, ...d.data() } as LotteryTicket)),
+        ...archivedTickets
+      ])
+        .filter(t => {
+          const normalizedStatus = String(t.status || '').toLowerCase();
+          return normalizedStatus !== 'cancelled';
+        });
+      const reportInjections = dedupeById([
+        ...injectionsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Injection)),
+        ...archivedInjections
+      ]);
+      const reportSettlements = dedupeById([
+        ...settlementsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Settlement)),
+        ...archivedSettlements
+      ]);
+      const reportResults = dedupeById([
+        ...resultsSnap.docs.map(d => ({ id: d.id, ...d.data() } as LotteryResult)),
+        ...archivedResults
+      ]);
 
       type ReportUserData = {
+        key: string;
         email: string;
         name: string;
         sellerId?: string;
@@ -5965,50 +6007,113 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
         tickets: LotteryTicket[];
       };
       const reportUsersMap = new Map<string, ReportUserData>();
-      const findUserProfile = (email: string) => users.find(u => u.email?.toLowerCase() === email.toLowerCase());
-      const ensureReportUser = (emailRaw?: string, fallbackName?: string, fallbackSellerId?: string) => {
-        const email = (emailRaw || '').toLowerCase().trim() || `sin-correo-${(fallbackSellerId || fallbackName || 'usuario').toLowerCase().replace(/\s+/g, '-')}`;
-        if (!reportUsersMap.has(email)) {
-          const profile = findUserProfile(email);
-          const summary = buildFinancialSummary({
-            tickets: reportTickets,
-            injections: reportInjections,
-            settlements: reportSettlements,
-            userEmail: email,
-            prizeResolver: (ticket: LotteryTicket) => getTicketPrizesFromSource(ticket, reportResults)
-          });
-          reportUsersMap.set(email, {
-            email,
-            name: profile?.name || fallbackName || email,
-            sellerId: profile?.sellerId || fallbackSellerId,
-            summary,
+      const normalizeText = (value?: string) => (value || '').toLowerCase().trim();
+      const findUserProfileByEmail = (email: string) => users.find(u => normalizeText(u.email) === normalizeText(email));
+      const findUserProfileBySeller = (sellerId?: string, fallbackName?: string) => {
+        const seller = normalizeText(sellerId);
+        if (seller) {
+          const bySeller = users.find(u => normalizeText(u.sellerId) === seller);
+          if (bySeller) return bySeller;
+        }
+        const fallback = normalizeText(fallbackName);
+        if (fallback) {
+          return users.find(u => normalizeText(u.name) === fallback);
+        }
+        return undefined;
+      };
+      const createEmptySummary = () => ({
+        tickets: [] as LotteryTicket[],
+        injections: [] as Injection[],
+        settlements: [] as Settlement[],
+        totalSales: 0,
+        totalCommissions: 0,
+        totalPrizes: 0,
+        totalInjections: 0,
+        totalLiquidations: 0,
+        netProfit: 0
+      });
+      const ensureReportUser = (identity: {
+        key: string;
+        email?: string;
+        fallbackName?: string;
+        fallbackSellerId?: string;
+      }) => {
+        if (!reportUsersMap.has(identity.key)) {
+          const email = normalizeText(identity.email);
+          const profile = email
+            ? findUserProfileByEmail(email)
+            : findUserProfileBySeller(identity.fallbackSellerId, identity.fallbackName);
+          reportUsersMap.set(identity.key, {
+            key: identity.key,
+            email: email || normalizeText(profile?.email),
+            name: profile?.name || identity.fallbackName || email || 'Usuario',
+            sellerId: profile?.sellerId || identity.fallbackSellerId,
+            summary: createEmptySummary(),
             tickets: []
           });
         }
-        return reportUsersMap.get(email)!;
+        return reportUsersMap.get(identity.key)!;
+      };
+
+      const getTicketIdentity = (ticket: LotteryTicket) => {
+        const email = normalizeText(ticket.sellerEmail);
+        const sellerRef = normalizeText(ticket.sellerId || ticket.sellerCode);
+        const nameRef = normalizeText(ticket.sellerName);
+        if (email) {
+          return { key: `email:${email}`, email, fallbackName: ticket.sellerName, fallbackSellerId: ticket.sellerCode || ticket.sellerId };
+        }
+        if (sellerRef) {
+          return { key: `seller:${sellerRef}`, email: '', fallbackName: ticket.sellerName, fallbackSellerId: ticket.sellerCode || ticket.sellerId };
+        }
+        return { key: `name:${nameRef || 'sin-nombre'}`, email: '', fallbackName: ticket.sellerName || 'Sin nombre', fallbackSellerId: ticket.sellerCode || ticket.sellerId };
       };
 
       reportTickets.forEach(ticket => {
-        const sellerEmail = ticket.sellerEmail?.toLowerCase() || '';
-        ensureReportUser(sellerEmail, ticket.sellerName, ticket.sellerCode);
+        const identity = getTicketIdentity(ticket);
+        const userData = ensureReportUser(identity);
+        userData.tickets.push(ticket);
       });
       reportInjections.forEach(inj => {
-        const email = inj.userEmail?.toLowerCase() || '';
-        ensureReportUser(email);
+        const email = normalizeText(inj.userEmail);
+        ensureReportUser({ key: `email:${email || 'sin-correo'}`, email });
       });
       reportSettlements.forEach(settlement => {
-        const email = settlement.userEmail?.toLowerCase() || '';
-        ensureReportUser(email);
+        const email = normalizeText(settlement.userEmail);
+        ensureReportUser({ key: `email:${email || 'sin-correo'}`, email });
       });
 
       reportUsersMap.forEach((userData) => {
-        const userTickets = reportTickets
-          .filter(ticket => (ticket.sellerEmail || '').toLowerCase() === userData.email)
-          .sort((a, b) => {
-            const aTime = (a.timestamp as any)?.toDate?.()?.getTime?.() ?? 0;
-            const bTime = (b.timestamp as any)?.toDate?.()?.getTime?.() ?? 0;
-            return aTime - bTime;
-          });
+        const userTickets = [...userData.tickets].sort((a, b) => {
+          const aTime = (a.timestamp as any)?.toDate?.()?.getTime?.() ?? 0;
+          const bTime = (b.timestamp as any)?.toDate?.()?.getTime?.() ?? 0;
+          return aTime - bTime;
+        });
+        const normalizedUserEmail = normalizeText(userData.email);
+        const userInjections = normalizedUserEmail
+          ? reportInjections.filter(injection => normalizeText(injection.userEmail) === normalizedUserEmail && (injection.type || 'injection') === 'injection')
+          : [];
+        const userSettlements = normalizedUserEmail
+          ? reportSettlements.filter(settlement => normalizeText(settlement.userEmail) === normalizedUserEmail)
+          : [];
+
+        const totalSales = userTickets.reduce((sum, ticket) => sum + (ticket.totalAmount || 0), 0);
+        const totalCommissions = userTickets.reduce((sum, ticket) => sum + ((ticket.totalAmount || 0) * ((ticket.commissionRate || 0) / 100)), 0);
+        const totalPrizes = userTickets.reduce((sum, ticket) => sum + (getTicketPrizesFromSource(ticket, reportResults).totalPrize || 0), 0);
+        const totalInjections = userInjections.reduce((sum, injection) => sum + (injection.amount || 0), 0);
+        const totalLiquidations = userSettlements.reduce((sum, settlement) => sum + (settlement.amountPaid || 0), 0);
+        const netProfit = totalSales - totalCommissions - totalPrizes + totalInjections;
+
+        userData.summary = {
+          tickets: userTickets,
+          injections: userInjections,
+          settlements: userSettlements,
+          totalSales,
+          totalCommissions,
+          totalPrizes,
+          totalInjections,
+          totalLiquidations,
+          netProfit
+        };
         userData.tickets = userTickets;
       });
 
@@ -6128,8 +6233,8 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
 
     setConfirmModal({
       show: true,
-      title: 'Archivar y Limpiar DÃ­a Operativo',
-      message: 'Se archivarÃ¡n los datos del dÃ­a operativo actual y luego se limpiarÃ¡n tickets, resultados e inyecciones operativas. Â¿Deseas continuar?',
+      title: 'Archivar y Limpiar Día Operativo',
+      message: 'Se archivarán los datos del día operativo actual y luego se limpiarán tickets, resultados e inyecciones operativas. ¿Deseas continuar?',
       onConfirm: async () => {
         try {
           const result = await runOperationalArchiveAndCleanup({
@@ -6140,7 +6245,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
           if (result.deletedCount > 0 || !result.archiveAlreadyExists) {
             toast.success('Archivo diario creado y limpieza operativa completada');
           } else {
-            toast.info('El archivo diario ya existía y no había datos pendientes por limpiar');
+            toast.info('El archivo diario ya exist?a y no hab?a datos pendientes por limpiar');
           }
         } catch (error) {
           console.error('Error archivando datos operativos:', error);
@@ -6153,7 +6258,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
   const applyLotteryToCart = (lotteryName: string) => {
     if (!lotteryName) return;
     setCart(cart.map(item => ({ ...item, lottery: lotteryName })));
-    toast.success(`LoterÃ­a ${cleanText(lotteryName)} aplicada a todo el pedido`);
+    toast.success(`Lotería ${cleanText(lotteryName)} aplicada a todo el pedido`);
   };
 
   const downloadDataUrlFile = (dataUrl: string, fileName: string) => {
@@ -6280,7 +6385,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
         dataUrl,
         fileName,
         title: `Cierre ${cleanText(cierreLottery)}`,
-        text: `Reporte de cierre de ${cleanText(cierreLottery)} para el dÃ­a ${historyDate}`,
+        text: `Reporte de cierre de ${cleanText(cierreLottery)} para el día ${historyDate}`,
         dialogTitle: 'Compartir Cierre'
       });
 
@@ -6288,7 +6393,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
         toast.success('Cierre compartido', { id: toastId });
       } else {
         downloadDataUrlFile(dataUrl, fileName);
-        toast.info('Tu dispositivo no permite compartir imÃ¡genes adjuntas. Se descargÃ³ para envÃ­o manual.', { id: toastId });
+        toast.info('Tu dispositivo no permite compartir imágenes adjuntas. Se descargó para envío manual.', { id: toastId });
       }
     } catch (err) {
       console.error('Error generating cierre image', err);
@@ -6353,7 +6458,8 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
       const tDate = getTicketDateKey(t);
       const matchesDate = tDate === todayStr;
       const matchesUser = canAccessAllUsers || t.sellerId === user?.uid || t.sellerEmail?.toLowerCase() === user?.email?.toLowerCase();
-      return matchesDate && matchesUser && (t.status === 'active' || (userProfile?.role !== 'ceo' && t.status === 'winner'));
+      // Keep daily fixed markers stable through liquidations: include any non-cancelled ticket.
+      return matchesDate && matchesUser && t.status !== 'cancelled';
     });
     const todayInjections = injections.filter(i => i.date === todayStr && (canAccessAllUsers || i.userEmail?.toLowerCase() === user?.email?.toLowerCase()));
     const summary = buildFinancialSummary({
@@ -6727,7 +6833,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
       setRecoveryTargetLotteryMapByRow(nextMultiSelection);
     } catch (error) {
       console.error('Error fetching recovery data:', error);
-      toast.error('No se pudieron cargar tickets para recuperaciÃ³n');
+      toast.error('No se pudieron cargar tickets para recuperación');
     } finally {
       setIsRecoveryLoading(false);
     }
@@ -7016,7 +7122,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
       .catch(error => {
         if (cancelled) return;
         console.error('Error loading liquidation source data:', error);
-        toast.error('No se pudieron cargar los datos histÃ³ricos para liquidaciÃ³n');
+        toast.error('No se pudieron cargar los datos históricos para liquidación');
       })
       .finally(() => {
         if (!cancelled) setIsLiquidationDataLoading(false);
@@ -7095,7 +7201,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
               onClick={handleLogout}
               className="w-full bg-white/10 text-white py-3 rounded-xl font-bold uppercase tracking-widest hover:bg-white/20 transition-all flex items-center justify-center gap-2"
             >
-              <LogOut className="w-4 h-4" /> Cerrar SesiÃ³n
+              <LogOut className="w-4 h-4" /> Cerrar Sesión
             </button>
           </div>
         </div>
@@ -7244,15 +7350,15 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, role: ['ceo', 'admin', 'seller', 'programador'] },
             { id: 'sales', label: 'Nueva Venta', icon: Plus },
             { id: 'history', label: 'Resumen de ventas', icon: History },
-            { id: 'stats', label: 'EstadÃ­sticas', icon: BarChart3, role: ['ceo', 'admin', 'seller', 'programador'] },
+            { id: 'stats', label: 'Estadísticas', icon: BarChart3, role: ['ceo', 'admin', 'seller', 'programador'] },
             { id: 'cierres', label: 'Cierres', icon: Printer, role: ['ceo', 'admin', 'seller', 'programador'] },
             { id: 'results', label: 'Resultados', icon: CheckCircle2, role: ['ceo', 'admin', 'seller', 'programador'] },
             { id: 'users', label: 'Usuarios', icon: Users, role: ['ceo', 'programador', 'canLiquidate'] },
             { id: 'archivo', label: 'Archivo', icon: Archive, role: ['ceo', 'admin', 'programador'] },
-            { id: 'admin', label: 'LoterÃ­as', icon: ShieldCheck, role: ['ceo', 'programador'] },
+            { id: 'admin', label: 'Loterías', icon: ShieldCheck, role: ['ceo', 'programador'] },
             { id: 'liquidaciones', label: 'Liquidaciones', icon: DollarSign, role: ['ceo', 'admin', 'seller', 'programador'], permission: 'canLiquidate' },
-            { id: 'recovery', label: 'RecuperaciÃ³n', icon: Database, role: ['programador'] },
-            { id: 'config', label: 'ConfiguraciÃ³n', icon: Settings, role: ['ceo', 'admin', 'seller', 'programador'] }
+            { id: 'recovery', label: 'Recuperación', icon: Database, role: ['programador'] },
+            { id: 'config', label: 'Configuración', icon: Settings, role: ['ceo', 'admin', 'seller', 'programador'] }
           ].filter(item => {
             if (!item.role) return true;
             if (item.permission === 'canLiquidate') {
@@ -7285,7 +7391,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
             {isSidebarOpen && (
               <div className="flex flex-col">
                 <span className="text-[11px] font-black uppercase tracking-widest leading-none">
-                  {isOnline ? 'Sincronizado' : 'Sin ConexiÃ³n'}
+                  {isOnline ? 'Sincronizado' : 'Sin Conexión'}
                 </span>
                 <span className="text-[9px] font-mono opacity-60 uppercase">
                   {isOnline ? 'Nube Activa' : 'Modo Local'}
@@ -7298,7 +7404,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-400/10 transition-all"
           >
             <LogOut className="w-5 h-5 flex-shrink-0" />
-            {isSidebarOpen && <span className="text-sm font-bold uppercase tracking-wider">Cerrar SesiÃ³n</span>}
+            {isSidebarOpen && <span className="text-sm font-bold uppercase tracking-wider">Cerrar Sesión</span>}
           </button>
         </div>
       </motion.aside>
@@ -7321,7 +7427,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
             </div>
             <div className="w-px h-6 bg-white/10 hidden sm:block"></div>
             <div className="flex flex-col items-center">
-              <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">ComisiÃ³n</span>
+              <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Comisión</span>
               <span className="text-xs font-black text-primary">${todayStats.commissions.toFixed(2)}</span>
             </div>
             <div className="w-px h-6 bg-white/10 hidden sm:block"></div>
@@ -7342,7 +7448,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
             <button 
               onClick={handleLogout}
               className="p-2 hover:bg-red-500/10 rounded-lg text-red-400"
-              title="Cerrar SesiÃ³n"
+              title="Cerrar Sesión"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -7363,7 +7469,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                   {/* Block 1 (2 columns) */}
                   <div className="grid grid-cols-2 gap-2">
                     <div className="glass-card p-3 border-white/5 bg-white/[0.02]">
-                      <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-0.5">Ventas del dÃ­a</p>
+                      <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-0.5">Ventas del día</p>
                       <p className="text-lg font-medium text-white">${todayStats.sales.toFixed(2)}</p>
                     </div>
                     <div className="glass-card p-3 border-white/5 bg-white/[0.02]">
@@ -7402,7 +7508,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                           <div key={inj.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
                             <div className="flex flex-col">
                               <span className="text-[10px] font-black text-white uppercase tracking-tighter">
-                                InyecciÃ³n Recibida
+                                Inyección Recibida
                               </span>
                               <span className="text-[9px] text-muted-foreground font-mono">
                                 {inj.timestamp?.toDate 
@@ -7561,7 +7667,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                         betType === 'PL' ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
-                      PalÃ©
+                      Palé
                     </button>
                   )}
                   {globalSettings.billetesEnabled && (isMultipleMode ? multiLottery.some(name => findActiveLotteryByName(name)?.isFourDigits) : findActiveLotteryByName(selectedLottery)?.isFourDigits) && (
@@ -7593,7 +7699,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                       focusedField === 'number' ? 'border-primary bg-primary/5' : 'border-transparent'
                     }`}
                   >
-                    <span className="text-[11px] font-mono uppercase text-muted-foreground font-medium">NÃºmero</span>
+                    <span className="text-[11px] font-mono uppercase text-muted-foreground font-medium">Número</span>
                     <div className="flex items-center justify-center min-h-[32px] relative w-full">
                       <input
                         ref={numberInputRef}
@@ -7648,7 +7754,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                     }`}
                   >
                     <span className="text-[11px] font-mono uppercase text-muted-foreground font-medium">
-                      {betType === 'CH' ? 'Cantidad' : 'InversiÃ³n'}
+                      {betType === 'CH' ? 'Cantidad' : 'Inversión'}
                     </span>
                     <div className="flex items-center justify-center min-h-[32px] relative w-full">
                       <input
@@ -7805,7 +7911,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                   className="w-full py-3 bg-white/5 border border-border rounded-xl text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-all flex items-center justify-center gap-2"
                 >
                   <Zap className="w-4 h-4" />
-                  Copiado RÃ¡pido
+                  Copiado Rápido
                 </button>
 
                 {/* Seller Daily Balance Summary */}
@@ -7814,7 +7920,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                     <div className="flex items-center justify-between border-b border-primary/10 pb-2">
                       <div className="flex items-center gap-2">
                         <LayoutDashboard className="w-4 h-4 text-primary" />
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Resumen del DÃ­a</h3>
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Resumen del Día</h3>
                       </div>
                       <span className="text-[10px] font-mono opacity-50">{todayStr}</span>
                     </div>
@@ -8086,7 +8192,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                                         Anterior
                                       </button>
                                       <span className="text-[10px] font-mono text-muted-foreground">
-                                        PÃ¡gina {currentPage} de {totalPages}
+                                        Página {currentPage} de {totalPages}
                                       </span>
                                       <button 
                                         onClick={(e) => {
@@ -8129,7 +8235,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                 <div className="glass-card p-4 sm:p-6 border border-white/5">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                     <div>
-                      <h2 className="text-xl font-light text-white">EstadÃ­sticas de Venta</h2>
+                      <h2 className="text-xl font-light text-white">Estadísticas de Venta</h2>
                       <p className="text-sm font-light text-muted-foreground mt-1">Fracciones y combinaciones por sorteo</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
@@ -8215,7 +8321,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                           {isExpanded && (
                             <div className="p-3 border-t border-white/5">
                               <div className="mb-4">
-                                <h4 className="text-xs font-light text-white/70 mb-2">NÃºmeros (00-99) - Fracciones</h4>
+                                <h4 className="text-xs font-light text-white/70 mb-2">Números (00-99) - Fracciones</h4>
                                 <div className="grid grid-cols-10 gap-[2px]">
                                   {Array.from({ length: 100 }).map((_, i) => {
                                     const num = i.toString().padStart(2, '0');
@@ -8403,11 +8509,11 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                           <table className="w-full text-sm border-collapse mb-6">
                             <thead>
                               <tr className="bg-gray-100">
-                                <th className="border p-2 text-center w-1/6">NÃºm</th>
+                                <th className="border p-2 text-center w-1/6">Núm</th>
                                 <th className="border p-2 text-center w-1/6">Tiempos</th>
-                                <th className="border p-2 text-center w-1/6">NÃºm</th>
+                                <th className="border p-2 text-center w-1/6">Núm</th>
                                 <th className="border p-2 text-center w-1/6">Tiempos</th>
-                                <th className="border p-2 text-center w-1/6">NÃºm</th>
+                                <th className="border p-2 text-center w-1/6">Núm</th>
                                 <th className="border p-2 text-center w-1/6">Tiempos</th>
                               </tr>
                             </thead>
@@ -8760,8 +8866,8 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                 <div className="glass-card p-4 sm:p-6 md:p-10">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10">
                     <div>
-                      <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">ADMINISTRACIÃ“N</h2>
-                      <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">GestiÃ³n de LoterÃ­as y ParÃ¡metros</p>
+                      <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">ADMINISTRACI?N</h2>
+                      <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">Gestión de Loterías y Parámetros</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                       {(userProfile?.role === 'ceo' || userProfile?.role === 'programador') && (
@@ -8779,7 +8885,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                             }}
                             className="flex-1 sm:flex-none bg-primary text-primary-foreground px-4 sm:px-6 py-3 rounded-xl font-bold uppercase text-[10px] sm:text-xs tracking-widest flex items-center justify-center gap-2 hover:brightness-110 transition-all"
                           >
-                            <Plus className="w-4 h-4" /> Nueva LoterÃ­a
+                            <Plus className="w-4 h-4" /> Nueva Lotería
                           </button>
                         </>
                       )}
@@ -8854,14 +8960,14 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                           for (const lot of defaults) {
                             await addDoc(collection(db, 'lotteries'), { ...lot, active: true });
                           }
-                          toast.success('LoterÃ­as iniciales creadas');
+                          toast.success('Loterías iniciales creadas');
                         }}
                         className="col-span-full p-10 border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center gap-4 hover:bg-white/5 transition-all group"
                       >
                         <Settings className="w-12 h-12 text-muted-foreground group-hover:text-primary transition-colors" />
                         <div className="text-center">
-                          <p className="font-black uppercase tracking-widest text-sm">Sembrar LoterÃ­as Iniciales</p>
-                          <p className="text-[10px] font-mono text-muted-foreground mt-1">Configura rÃ¡pidamente las loterÃ­as mÃ¡s comunes de Colombia</p>
+                          <p className="font-black uppercase tracking-widest text-sm">Sembrar Loterías Iniciales</p>
+                          <p className="text-[10px] font-mono text-muted-foreground mt-1">Configura rápidamente las loterías más comunes de Colombia</p>
                         </div>
                       </button>
                     )}
@@ -8874,19 +8980,19 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                           let fixedCount = 0;
                           for (const docSnap of snap.docs) {
                             const data = docSnap.data();
-                            if (data.name && (data.name.includes('Ã˜') || data.name.includes('<') || data.name.includes('Ã'))) {
+                            if (data.name && (data.name.includes('??') || data.name.includes('<') || data.name.includes('Ý'))) {
                               const newName = cleanText(data.name);
                               await updateDoc(doc(db, 'lotteries', docSnap.id), { name: newName });
                               fixedCount++;
                             }
                           }
-                          toast.success(`${fixedCount} loterÃ­as corregidas`);
+                          toast.success(`${fixedCount} loterías corregidas`);
                         }}
                         className="col-span-full p-4 border border-dashed border-primary/30 rounded-xl flex items-center justify-center gap-4 hover:bg-primary/5 transition-all group mt-4"
                       >
                         <ShieldCheck className="w-5 h-5 text-primary" />
                         <div className="text-center">
-                          <p className="font-bold uppercase tracking-widest text-xs">Corregir Nombres de LoterÃ­as Corruptos</p>
+                          <p className="font-bold uppercase tracking-widest text-xs">Corregir Nombres de Loterías Corruptos</p>
                         </div>
                       </button>
                     )}
@@ -8901,8 +9007,8 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                             <Trash2 className="w-5 h-5" /> Zona de Peligro
                           </h3>
                           <p className="text-xs font-mono text-muted-foreground mt-2 max-w-xl">
-                            Esta acciÃ³n eliminarÃ¡ permanentemente todos los registros de ventas, tickets, inyecciones de capital y resultados de loterÃ­as. 
-                            Solo las loterÃ­as y los usuarios se mantendrÃ¡n intactos.
+                            Esta acción eliminará permanentemente todos los registros de ventas, tickets, inyecciones de capital y resultados de loterías. 
+                            Solo las loterías y los usuarios se mantendrán intactos.
                           </p>
                         </div>
                         <button 
@@ -8930,7 +9036,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
                     <div>
                       <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">USUARIOS</h2>
-                      <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">GestiÃ³n de Accesos y Comisiones</p>
+                      <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">Gestión de Accesos y Comisiones</p>
                     </div>
                     <div className="flex items-center gap-4 w-full sm:w-auto">
                       <select 
@@ -8953,7 +9059,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                                 value={u.email} 
                                 className={`bg-gray-900 ${isLowUtility ? 'text-red-500 font-bold' : ''}`}
                               >
-                                {u.name} ({u.email?.split('@')[0] || ''}) {isLowUtility ? '??' : ''}
+                                {u.name} ({u.email?.split('@')[0] || ''}) {isLowUtility ? '?' : ''}
                               </option>
                             );
                           });
@@ -8992,7 +9098,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                               <p className="font-black text-sm uppercase tracking-tight text-white/90">{u.name}</p>
                               <div className="flex items-center gap-2 mt-1">
                                 <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">{u.role}</p>
-                                <span className="text-muted-foreground">â€¢</span>
+                                <span className="text-muted-foreground">•</span>
                                 <p className="text-[10px] font-mono text-muted-foreground">{u.email}</p>
                               </div>
                             </div>
@@ -9035,7 +9141,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                           <div className="bg-black/40 p-4 rounded-xl border border-white/5">
-                            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-1">ComisiÃ³n Asignada</p>
+                            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-1">Comisión Asignada</p>
                             <p className="text-xl font-black text-white">{u.commissionRate}%</p>
                           </div>
                           <div className="bg-black/40 p-4 rounded-xl border border-white/5">
@@ -9116,7 +9222,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                             onClick={() => setConsolidatedMode('day')}
                             className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${consolidatedMode === 'day' ? 'bg-primary text-primary-foreground' : 'bg-white/5 text-muted-foreground'}`}
                           >
-                            Un DÃ­a
+                            Un Día
                           </button>
                           <button
                             onClick={() => setConsolidatedMode('range')}
@@ -9185,7 +9291,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-1 space-y-6">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Fecha de LiquidaciÃ³n</label>
+                        <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Fecha de Liquidación</label>
                         <input 
                           type="date"
                           value={liquidationDate}
@@ -9218,7 +9324,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                           ))}
                         </select>
                         {liquidationDate !== businessDayKey && isLiquidationDataLoading && (
-                          <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Cargando datos histÃ³ricos...</p>
+                          <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Cargando datos históricos...</p>
                         )}
                       </div>
 
@@ -9274,7 +9380,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                             onClick={handleLiquidate}
                             className="w-full bg-primary text-primary-foreground font-black uppercase tracking-widest py-4 rounded-xl hover:brightness-110 transition-all mt-6 shadow-lg shadow-primary/20"
                           >
-                            {selectedLiquidationSettlement ? `Actualizar liquidaciÃ³n ${liquidationDate}` : `Liquidar dÃ­a ${liquidationDate}`}
+                            {selectedLiquidationSettlement ? `Actualizar liquidación ${liquidationDate}` : `Liquidar día ${liquidationDate}`}
                           </button>
                         </>
                       )}
@@ -9340,7 +9446,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                               
                               <div className="bg-primary/5 p-6 rounded-2xl border border-primary/20 flex justify-between items-center">
                                 <div>
-                                  <p className="text-[10px] font-mono text-primary uppercase tracking-widest mb-1">Balance Neto del DÃ­a</p>
+                                  <p className="text-[10px] font-mono text-primary uppercase tracking-widest mb-1">Balance Neto del Día</p>
                                   <p className="text-xs text-muted-foreground uppercase tracking-tighter">Monto a entregar a la casa</p>
                                 </div>
                                 <p className="text-3xl font-black text-primary">USD {summary.netProfit.toFixed(2)}</p>
@@ -9381,8 +9487,8 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                                     const shared = await shareImageDataUrl({
                                       dataUrl,
                                       fileName,
-                                      title: 'Reporte de LiquidaciÃ³n',
-                                      text: `Reporte de ventas de ${userToLiquidate?.name || 'Usuario'} para el dÃ­a ${liquidationDate}`,
+                                      title: 'Reporte de Liquidación',
+                                      text: `Reporte de ventas de ${userToLiquidate?.name || 'Usuario'} para el día ${liquidationDate}`,
                                       dialogTitle: 'Compartir Reporte'
                                     });
 
@@ -9390,7 +9496,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                                       toast.success('Reporte compartido', { id: toastId });
                                     } else {
                                       downloadDataUrlFile(dataUrl, fileName);
-                                      toast.info('Tu dispositivo no permite compartir imÃ¡genes adjuntas. Se descargÃ³ para envÃ­o manual.', { id: toastId });
+                                      toast.info('Tu dispositivo no permite compartir imágenes adjuntas. Se descargó para envío manual.', { id: toastId });
                                     }
 
                                   } catch (error) {
@@ -9427,7 +9533,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                 <div className="glass-card p-4 sm:p-6 md:p-10">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
                     <div>
-                      <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">ARCHIVO HISTÃ“RICO</h2>
+                      <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">ARCHIVO HISTÓRICO</h2>
                       <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">Consulta de Datos y Liquidaciones Pasadas</p>
                     </div>
                   </div>
@@ -9517,7 +9623,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                           <div className="glass-card p-8 space-y-8 bg-black border-white/10 relative overflow-hidden">
                             <div className="flex justify-between items-start border-b border-white/10 pb-6">
                               <div>
-                                <h3 className="text-xl font-black uppercase tracking-tighter text-primary">REPORTE HISTÃ“RICO</h3>
+                                <h3 className="text-xl font-black uppercase tracking-tighter text-primary">REPORTE HISTÓRICO</h3>
                                 <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">{archiveDate}</p>
                               </div>
                               <div className="text-right">
@@ -9590,9 +9696,9 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                 <div className="glass-card p-4 sm:p-6 md:p-8">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                     <div>
-                      <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">RECUPERACIÃ“N</h2>
+                      <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">RECUPERACIÓN</h2>
                       <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">
-                        CorrecciÃ³n manual de sorteo por ticket (live + archivo diario)
+                        Corrección manual de sorteo por ticket (live + archivo diario)
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -9661,7 +9767,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                       </select>
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Orden creaciÃ³n</label>
+                      <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Orden creación</label>
                       <select
                         value={recoverySortOrder}
                         onChange={(e) => setRecoverySortOrder(e.target.value as 'asc' | 'desc')}
@@ -9701,7 +9807,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                               <p className="text-[10px] font-mono text-muted-foreground break-all">{ticket.sellerEmail || '-'}</p>
                             </div>
                             <div className="xl:col-span-2">
-                              <p className="text-[10px] font-mono uppercase text-muted-foreground">CreaciÃ³n</p>
+                              <p className="text-[10px] font-mono uppercase text-muted-foreground">Creación</p>
                               <p className="text-xs font-mono">{createdAt}</p>
                               <p className="text-[10px] font-mono text-muted-foreground">Estado: {ticket.status || '-'}</p>
                             </div>
@@ -9794,7 +9900,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                 <div className="glass-card p-4 sm:p-6 md:p-10">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
                     <div>
-                      <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">CONFIGURACIÃ“N</h2>
+                      <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">CONFIGURACIÓN</h2>
                       <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">Ajustes Personales y del Sistema</p>
                     </div>
                   </div>
@@ -9825,11 +9931,11 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                           </select>
                         </div>
                         <p className="text-[10px] text-muted-foreground leading-relaxed">
-                          Este ajuste personal define a quÃ© precio venderÃ¡s los chances y cÃ³mo el sistema calcularÃ¡ sus premios segÃºn la tabla global configurada por el CEO.
+                          Este ajuste personal define a qué precio venderás los chances y cómo el sistema calculará sus premios según la tabla global configurada por el CEO.
                         </p>
                         {!canUpdatePersonalChancePrice && (
                           <p className="text-[10px] text-amber-400 leading-relaxed">
-                            Este precio solo puede cambiarse antes de tu primera venta del dÃ­a o despuÃ©s de haber sido liquidado.
+                            Este precio solo puede cambiarse antes de tu primera venta del día o después de haber sido liquidado.
                           </p>
                         )}
                         <button
@@ -9853,23 +9959,23 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
 
                       <form onSubmit={handleUpdatePassword} className="space-y-4">
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Nueva ContraseÃ±a</label>
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Nueva Contraseña</label>
                           <input 
                             type="password"
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
                             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary transition-all"
-                            placeholder="MÃ­nimo 6 caracteres"
+                            placeholder="Mínimo 6 caracteres"
                           />
                         </div>
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Confirmar ContraseÃ±a</label>
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Confirmar Contraseña</label>
                           <input 
                             type="password"
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary transition-all"
-                            placeholder="Repita la contraseÃ±a"
+                            placeholder="Repita la contraseña"
                           />
                         </div>
                         <button 
@@ -9877,7 +9983,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                           disabled={isUpdatingPassword}
                           className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-primary/90 transition-all disabled:opacity-50"
                         >
-                          {isUpdatingPassword ? 'Actualizando...' : 'Cambiar ContraseÃ±a'}
+                          {isUpdatingPassword ? 'Actualizando...' : 'Cambiar Contraseña'}
                         </button>
                       </form>
                     </div>
@@ -9891,7 +9997,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
 
         {/* Footer */}
         <footer className="h-auto min-h-12 glass border-t border-border px-3 sm:px-8 py-2 flex items-center justify-between gap-2 shrink-0 text-[8px] sm:text-[9px] font-mono text-muted-foreground uppercase tracking-[0.12em] sm:tracking-[0.2em]">
-          <p>Â© 2026 CHANCE PRO SYSTEMS â€¢ TERMINAL {user.uid.slice(0, 8)}</p>
+          <p>© 2026 CHANCE PRO SYSTEMS • TERMINAL {user.uid.slice(0, 8)}</p>
           <div className="flex gap-3 sm:gap-8 flex-wrap justify-end">
             <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-500" /> SERVER: OK</span>
             <span>V1.2.0-STABLE</span>
@@ -9903,11 +10009,6 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
     </>
   );
 }
-
-
-
-
-
 
 
 
