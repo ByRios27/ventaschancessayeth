@@ -252,6 +252,13 @@ interface Settlement {
   newTotalDebt: number;
   liquidatedBy: string;
   timestamp: any;
+  sellerEmail?: string;
+  sellerId?: string | null;
+  resultadoDia?: number;
+  injectionAmount?: number;
+  balanceFinal?: number;
+  difference?: number;
+  net?: number;
 }
 
 interface RecoveryTicketRecord {
@@ -2079,7 +2086,7 @@ const getEndOfBusinessDay = (date = new Date()) => {
   return end;
 };
 
-const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targetUserEmail, defaultType = 'injection', initialAmount = '', allowOnlyInjection = false }: { show: boolean, onClose: () => void, users: UserProfile[], currentUser: any, userProfile: UserProfile | null, targetUserEmail?: string, defaultType?: 'injection' | 'payment' | 'debt', initialAmount?: string, allowOnlyInjection?: boolean }) => {
+const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targetUserEmail, defaultType = 'injection', initialAmount = '', allowOnlyInjection = false, editingTransaction = null }: { show: boolean, onClose: () => void, users: UserProfile[], currentUser: any, userProfile: UserProfile | null, targetUserEmail?: string, defaultType?: 'injection' | 'payment' | 'debt', initialAmount?: string, allowOnlyInjection?: boolean, editingTransaction?: Injection | null }) => {
   const [targetEmail, setTargetEmail] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'injection' | 'payment' | 'debt'>(defaultType);
@@ -2087,21 +2094,36 @@ const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targ
 
   useEffect(() => {
     if (show) {
-      setType(defaultType);
-      setAmount(initialAmount);
-      if (targetUserEmail) {
-        setTargetEmail(targetUserEmail);
-      } else if (!targetEmail) {
-        setTargetEmail('');
+      if (editingTransaction) {
+        setType(editingTransaction.type || defaultType);
+        setAmount(String(editingTransaction.amount ?? ''));
+        setTargetEmail(editingTransaction.userEmail || targetUserEmail || '');
+      } else {
+        setType(defaultType);
+        setAmount(initialAmount);
+        if (targetUserEmail) {
+          setTargetEmail(targetUserEmail);
+        } else if (!targetEmail) {
+          setTargetEmail('');
+        }
       }
     }
-  }, [show, targetUserEmail, defaultType, initialAmount]);
+  }, [show, targetUserEmail, defaultType, initialAmount, editingTransaction]);
 
   // Add current user to the list if not present
   const allUsers = [...users].filter(u => u && u.email && u.name && u.name.trim() !== '');
-  if (userProfile && !allUsers.find(u => u.email === userProfile.email)) {
+  if (userProfile && userProfile.email && !allUsers.find(u => u.email?.toLowerCase() === userProfile.email.toLowerCase())) {
     allUsers.push(userProfile);
   }
+
+  const formatModalUserLabel = (u: UserProfile) => {
+    const emailName = (u.email?.split('@')[0] || '').trim();
+    const code = (u.sellerId || emailName || '').trim();
+    const rawName = (u.name || '').trim();
+    const nameLooksLikeCode = rawName.toLowerCase() === code.toLowerCase();
+    const displayName = (nameLooksLikeCode ? emailName : rawName) || emailName || code;
+    return `${code.toUpperCase()} (${displayName.toUpperCase()})`;
+  };
 
   if (!show) return null;
 
@@ -2109,6 +2131,21 @@ const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targ
     if (!targetEmail || !amount || isNaN(Number(amount))) return;
     setLoading(true);
     try {
+      if (editingTransaction?.id) {
+        await updateDoc(doc(db, 'injections', editingTransaction.id), {
+          userEmail: targetEmail.toLowerCase(),
+          amount: Number(amount),
+          type: type,
+          updatedAt: serverTimestamp(),
+          updatedBy: currentUser?.uid
+        });
+        toast.success('Inyección actualizada');
+        onClose();
+        setTargetEmail('');
+        setAmount('');
+        setType('injection');
+        return;
+      }
       const batch = writeBatch(db);
       const transactionRef = doc(collection(db, 'injections')); // We keep using 'injections' collection for historical reasons, but it stores all transactions
       
@@ -2167,11 +2204,9 @@ const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targ
             >
               <option key="default" value="" className="bg-gray-900">Seleccionar usuario...</option>
               {allUsers.filter(u => u.role === 'seller' || u.role === 'admin' || u.role === 'ceo' || u.role === 'programador').map((u, i) => {
-                const username = u.email?.split('@')[0] || '';
-                const displayName = `${u.name} (${username})`;
                 return (
                   <option key={u.email || `all-${i}`} value={u.email} className="bg-gray-900">
-                    {displayName}
+                    {formatModalUserLabel(u)}
                   </option>
                 );
               })}
@@ -3119,6 +3154,10 @@ function App() {
   const [injectionTargetUserEmail, setInjectionTargetUserEmail] = useState<string>('');
   const [injectionDefaultType, setInjectionDefaultType] = useState<'injection' | 'payment' | 'debt'>('injection');
   const [injectionInitialAmount, setInjectionInitialAmount] = useState<string>('');
+  const [editingInjection, setEditingInjection] = useState<Injection | null>(null);
+  const [editingDebtUserEmail, setEditingDebtUserEmail] = useState<string>('');
+  const [editingDebtAmount, setEditingDebtAmount] = useState<string>('');
+  const [isSavingDebt, setIsSavingDebt] = useState(false);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [historyInjections, setHistoryInjections] = useState<Injection[]>([]);
   const [historySettlements, setHistorySettlements] = useState<Settlement[]>([]);
@@ -3128,7 +3167,7 @@ function App() {
   const [liquidationResultsSnapshot, setLiquidationResultsSnapshot] = useState<LotteryResult[]>([]);
   const [liquidationSettlementsSnapshot, setLiquidationSettlementsSnapshot] = useState<Settlement[]>([]);
   const [isLiquidationDataLoading, setIsLiquidationDataLoading] = useState(false);
-  const [selectedUserToLiquidate, setSelectedUserToLiquidate] = useState<string>('');
+  const [selectedUserToLiquidate, setSelectedUserToLiquidate] = useState<string>('__ALL__');
   const [selectedManageUserEmail, setSelectedManageUserEmail] = useState<string>('');
   const [liquidationDate, setLiquidationDate] = useState<string>(format(getBusinessDate(), 'yyyy-MM-dd'));
   const [amountPaid, setAmountPaid] = useState<string>('');
@@ -4763,7 +4802,7 @@ function App() {
     const totalPrizes = validTickets.reduce((sum, ticket) => sum + (prizeResolver(ticket).totalPrize || 0), 0);
     const totalInjections = validInjections.reduce((sum, injection) => sum + (injection.amount || 0), 0);
     const totalLiquidations = validSettlements.reduce((sum, settlement) => sum + (settlement.amountPaid || 0), 0);
-    const netProfit = totalSales - totalCommissions - totalPrizes + totalInjections;
+    const netProfit = totalSales - totalCommissions - totalPrizes;
 
     return {
       tickets: validTickets,
@@ -4788,7 +4827,7 @@ function App() {
       
       const matchesUser = canAccessAllUsers || t.sellerId === user?.uid || t.sellerEmail?.toLowerCase() === user?.email?.toLowerCase();
 
-      return tDate === date && (t.status === 'active' || t.status === 'winner') && matchesUser && t.bets && t.bets.some(b => cleanText(b.lottery) === cleanText(lotteryName) && (!typeFilter || b.type === typeFilter));
+      return tDate === date && t.status !== 'cancelled' && matchesUser && t.bets && t.bets.some(b => cleanText(b.lottery) === cleanText(lotteryName) && (!typeFilter || b.type === typeFilter));
     });
 
     const sales = dayTickets.reduce((acc, t) => {
@@ -4822,7 +4861,7 @@ function App() {
       
       const matchesUser = canAccessAllUsers || t.sellerId === user?.uid || t.sellerEmail?.toLowerCase() === user?.email?.toLowerCase();
 
-      return tDate === date && (t.status === 'active' || t.status === 'winner') && matchesUser && t.bets && t.bets.some(b => cleanText(b.lottery) === cleanText(lotteryName));
+      return tDate === date && t.status !== 'cancelled' && matchesUser && t.bets && t.bets.some(b => cleanText(b.lottery) === cleanText(lotteryName));
     });
 
     const pzsVolume = dayTickets.reduce((acc, t) => {
@@ -4849,7 +4888,7 @@ function App() {
     
     const dayTickets = sourceTickets.filter(t => {
       const tDate = t.timestamp?.toDate ? format(t.timestamp.toDate(), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-      return tDate === date && (t.status === 'active' || t.status === 'winner') && t.sellerEmail?.toLowerCase() === userEmail?.toLowerCase() && t.bets && t.bets.some(b => b.lottery === lotteryName && (!typeFilter || b.type === typeFilter));
+      return tDate === date && t.status !== 'cancelled' && t.sellerEmail?.toLowerCase() === userEmail?.toLowerCase() && t.bets && t.bets.some(b => b.lottery === lotteryName && (!typeFilter || b.type === typeFilter));
     });
 
     const sales = dayTickets.reduce((acc, t) => {
@@ -4899,7 +4938,7 @@ function App() {
       })
       .reduce((acc, i) => acc + i.amount, 0);
 
-    const totalNetProfit = totalSales - totalCommissions - totalPrizes + totalInjections;
+    const totalNetProfit = totalSales - totalCommissions - totalPrizes;
     const totalBankProfit = totalSales - totalCommissions - totalPrizes;
     
     return { 
@@ -4989,7 +5028,7 @@ function App() {
 
     const currentEmail = (user.email || '').toLowerCase();
     const ownTickets = tickets.filter(ticket =>
-      (ticket.status === 'active' || ticket.status === 'winner') &&
+      ticket.status !== 'cancelled' &&
       (
         ticket.sellerId === user.uid ||
         (ticket.sellerEmail || '').toLowerCase() === currentEmail
@@ -5634,8 +5673,78 @@ function App() {
     });
   };
 
+  const allLiquidationUsersValue = '__ALL__';
+  const canChooseLiquidationUser = userProfile?.role === 'ceo' || userProfile?.role === 'admin' || userProfile?.role === 'programador';
+  const canConfirmLiquidation = !!userProfile && ['ceo', 'admin', 'programador'].includes(userProfile.role);
+  const selectedLiquidationIsAll = selectedUserToLiquidate === allLiquidationUsersValue;
+  const signedCurrency = (value: number) => `${value > 0 ? '+' : value < 0 ? '-' : ''}USD ${Math.abs(value || 0).toFixed(2)}`;
+  const signedAmountClass = (value: number) => value > 0 ? 'text-emerald-400' : value < 0 ? 'text-red-400' : 'text-muted-foreground';
+  const canManageMoneyAdjustments = !!userProfile && ['ceo', 'admin', 'programador'].includes(userProfile.role);
+  const canDeleteMoneyAdjustments = !!userProfile && ['ceo', 'programador'].includes(userProfile.role);
+
+  const openEditInjection = (injection: Injection) => {
+    if (!canManageMoneyAdjustments) return;
+    setEditingInjection(injection);
+    setInjectionTargetUserEmail(injection.userEmail || '');
+    setInjectionDefaultType(injection.type || 'injection');
+    setInjectionInitialAmount(String(injection.amount ?? ''));
+    setIsInjectionOnly((injection.type || 'injection') === 'injection');
+    setShowInjectionModal(true);
+  };
+
+  const deleteInjection = (injection: Injection) => {
+    if (!canDeleteMoneyAdjustments || !injection.id) return;
+    setConfirmModal({
+      show: true,
+      title: 'Eliminar Inyección',
+      message: '¿Está seguro de eliminar esta inyección? Esta acción no se puede deshacer.',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'injections', injection.id));
+          setInjections(prev => prev.filter(item => item.id !== injection.id));
+          setHistoryInjections(prev => prev.filter(item => item.id !== injection.id));
+          setLiquidationInjectionsSnapshot(prev => prev.filter(item => item.id !== injection.id));
+          toast.success('Inyección eliminada');
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, `injections/${injection.id}`);
+        }
+      }
+    });
+  };
+
+  const saveUserDebt = async (targetUser: UserProfile) => {
+    if (!canManageMoneyAdjustments || !targetUser?.email) return;
+    const nextDebt = Number(editingDebtAmount);
+    if (Number.isNaN(nextDebt)) {
+      toast.error('Ingrese una deuda válida');
+      return;
+    }
+
+    setIsSavingDebt(true);
+    try {
+      await updateDoc(doc(db, 'users', targetUser.email.toLowerCase()), {
+        currentDebt: nextDebt
+      });
+      setUsers(prev => prev.map(item => (
+        item.email?.toLowerCase() === targetUser.email.toLowerCase()
+          ? { ...item, currentDebt: nextDebt }
+          : item
+      )));
+      if (userProfile?.email?.toLowerCase() === targetUser.email.toLowerCase()) {
+        setUserProfile({ ...userProfile, currentDebt: nextDebt });
+      }
+      setEditingDebtUserEmail('');
+      setEditingDebtAmount('');
+      toast.success('Deuda actualizada');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${targetUser.email}`);
+    } finally {
+      setIsSavingDebt(false);
+    }
+  };
+
   const selectedLiquidationSettlement = useMemo(() => {
-    if (!selectedUserToLiquidate || !liquidationDate) return null;
+    if (!selectedUserToLiquidate || selectedUserToLiquidate === allLiquidationUsersValue || !liquidationDate) return null;
     const sourceSettlements = liquidationDate === businessDayKey ? settlements : liquidationSettlementsSnapshot;
     const matches = sourceSettlements.filter(settlement =>
       (settlement.userEmail || '').toLowerCase() === selectedUserToLiquidate.toLowerCase() &&
@@ -5650,7 +5759,7 @@ function App() {
   }, [businessDayKey, liquidationDate, liquidationSettlementsSnapshot, selectedUserToLiquidate, settlements]);
 
   useEffect(() => {
-    if (!selectedUserToLiquidate || !liquidationDate) {
+    if (!selectedUserToLiquidate || selectedUserToLiquidate === allLiquidationUsersValue || !liquidationDate) {
       setAmountPaid('');
       return;
     }
@@ -5662,8 +5771,8 @@ function App() {
   }, [liquidationDate, selectedLiquidationSettlement?.amountPaid, selectedLiquidationSettlement?.id, selectedUserToLiquidate]);
 
   const handleLiquidate = async () => {
-    if (!selectedUserToLiquidate) return;
-    if (!userProfile || !['ceo', 'admin', 'programador'].includes(userProfile.role)) {
+    if (!selectedUserToLiquidate || selectedLiquidationIsAll) return;
+    if (!canConfirmLiquidation) {
       alert('No tienes permisos para liquidar');
       return;
     }
@@ -5690,7 +5799,7 @@ function App() {
     });
 
     const ticketsToLiquidate = financialSummary.tickets.filter(ticket =>
-      ticket.status === 'active' && !ticket.settlementId && !ticket.liquidated
+      ticket.status !== 'cancelled' && !ticket.settlementId && !ticket.liquidated
     );
     const injectionsToLiquidate = financialSummary.injections.filter(injection =>
       !injection.settlementId && !injection.liquidated
@@ -5699,15 +5808,16 @@ function App() {
     const totalSales = financialSummary.totalSales;
     const totalCommissions = financialSummary.totalCommissions;
     const totalPrizes = financialSummary.totalPrizes;
-    const totalInjections = financialSummary.totalInjections;
-    const netProfit = totalSales - totalCommissions - totalPrizes + totalInjections;
+    const injectionAmount = financialSummary.totalInjections;
+    const resultadoDia = totalSales - totalCommissions - totalPrizes;
+    const balanceFinal = resultadoDia + injectionAmount;
 
     const paid = Number(amountPaid) || 0;
     const currentDebt = userToLiquidate.currentDebt || 0;
-    const existingDebtImpact = selectedLiquidationSettlement?.debtAdded || 0;
+    const existingDebtImpact = selectedLiquidationSettlement?.difference ?? selectedLiquidationSettlement?.debtAdded ?? 0;
     const previousDebt = currentDebt - existingDebtImpact;
-    const debtAdded = netProfit - paid;
-    const newTotalDebt = previousDebt + debtAdded;
+    const difference = balanceFinal - paid;
+    const newTotalDebt = previousDebt + difference;
     const actionLabel = selectedLiquidationSettlement ? 'actualizar' : 'liquidar';
 
     setConfirmModal({
@@ -5715,10 +5825,11 @@ function App() {
       title: selectedLiquidationSettlement ? 'Actualizar Liquidación' : 'Confirmar Liquidación Diaria',
       message: `¿Está seguro de ${actionLabel} a ${userToLiquidate.name} para el día ${liquidationDate}? \
 \
-Utilidad Neta: USD ${netProfit.toFixed(2)}\
-Monto Entregado: USD ${paid.toFixed(2)}\
-Deuda Añadida: USD ${debtAdded.toFixed(2)}\
-Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
+Resultado: ${signedCurrency(resultadoDia)}\
+Inyeccion: USD ${injectionAmount.toFixed(2)}\
+Balance final: ${signedCurrency(balanceFinal)}\
+Monto recibido: USD ${paid.toFixed(2)}\
+Diferencia: ${signedCurrency(difference)}`,
       onConfirm: async () => {
         try {
           const normalizedUserEmail = userToLiquidate.email.toLowerCase();
@@ -5743,9 +5854,9 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
           }
 
           const currentDebtValue = userToLiquidate.currentDebt || 0;
-          const baselineDebt = currentDebtValue - (existingSettlement?.debtAdded || 0);
-          const finalDebtAdded = netProfit - paid;
-          const finalNewTotalDebt = baselineDebt + finalDebtAdded;
+          const baselineDebt = currentDebtValue - (existingSettlement?.difference ?? existingSettlement?.debtAdded ?? 0);
+          const finalDifference = balanceFinal - paid;
+          const finalNewTotalDebt = baselineDebt + finalDifference;
 
           const settlementPayload = {
             userEmail: normalizedUserEmail,
@@ -5755,11 +5866,15 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
             totalSales,
             totalCommissions,
             totalPrizes,
-            totalInjections,
-            netProfit,
-            net: netProfit,
+            resultadoDia,
+            injectionAmount,
+            balanceFinal,
+            totalInjections: injectionAmount,
+            netProfit: resultadoDia,
+            net: resultadoDia,
             amountPaid: paid,
-            debtAdded: finalDebtAdded,
+            difference: finalDifference,
+            debtAdded: finalDifference,
             previousDebt: baselineDebt,
             newTotalDebt: finalNewTotalDebt,
             liquidatedBy: userProfile?.email,
@@ -5793,10 +5908,9 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                   const chunk = ticketsToLiquidate.slice(i, i + 450);
                   const batch = writeBatch(db);
                   chunk.forEach(ticket => {
-                    if (ticket.status !== 'active') return;
+                    if (ticket.status === 'cancelled') return;
                     if (ticket.settlementId || ticket.liquidated) return;
                     batch.update(doc(db, 'tickets', ticket.id), {
-                      status: 'liquidated',
                       liquidated: true,
                       settlementId: effectiveSettlementId
                     });
@@ -5836,7 +5950,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
           if (isCurrentOperationalDate && effectiveSettlementId) {
             setTickets(prev => prev.map(ticket => (
               liquidatedTicketIds.has(ticket.id)
-                ? { ...ticket, liquidated: true, settlementId: effectiveSettlementId, status: 'liquidated' as any }
+                ? { ...ticket, liquidated: true, settlementId: effectiveSettlementId }
                 : ticket
             )));
             setInjections(prev => prev.map(injection => (
@@ -5859,10 +5973,14 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
             totalSales,
             totalCommissions,
             totalPrizes,
-            totalInjections,
-            netProfit,
+            totalInjections: injectionAmount,
+            resultadoDia,
+            injectionAmount,
+            balanceFinal,
+            netProfit: resultadoDia,
             amountPaid: paid,
-            debtAdded: finalDebtAdded,
+            difference: finalDifference,
+            debtAdded: finalDifference,
             previousDebt: baselineDebt,
             newTotalDebt: finalNewTotalDebt,
             liquidatedBy: userProfile?.email || '',
@@ -6101,7 +6219,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
         const totalPrizes = userTickets.reduce((sum, ticket) => sum + (getTicketPrizesFromSource(ticket, reportResults).totalPrize || 0), 0);
         const totalInjections = userInjections.reduce((sum, injection) => sum + (injection.amount || 0), 0);
         const totalLiquidations = userSettlements.reduce((sum, settlement) => sum + (settlement.amountPaid || 0), 0);
-        const netProfit = totalSales - totalCommissions - totalPrizes + totalInjections;
+        const netProfit = totalSales - totalCommissions - totalPrizes;
 
         userData.summary = {
           tickets: userTickets,
@@ -6526,6 +6644,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
 
     return sortedLotteries.map(lot => {
       const ticketsForLot = filteredTickets.filter(ticket =>
+        ticket.status !== 'cancelled' &&
         ticket.bets && ticket.bets.some(bet => bet && cleanText(bet.lottery) === cleanText(lot.name) && (!historyTypeFilterCode || bet.type === historyTypeFilterCode))
       );
       if (!ticketsForLot.length) return null;
@@ -6586,7 +6705,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
   const historyStats = useMemo(() => {
     if (activeTab !== 'history') return null;
     
-    const hTickets = filteredTickets.filter(t => (t.status === 'active' || t.status === 'winner'));
+    const hTickets = filteredTickets.filter(t => t.status !== 'cancelled');
     
     const sales = hTickets.reduce((acc, t) => {
       const lotBets = (t.bets || []);
@@ -6623,6 +6742,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
 
   const fetchUserOperationalDataByDate = useCallback(async (targetDate: string, userEmail: string) => {
     const normalizedEmail = userEmail.toLowerCase().trim();
+    const fetchAllUsers = normalizedEmail === allLiquidationUsersValue.toLowerCase();
     const { start, end } = getBusinessDayRange(targetDate);
     const archiveSnap = await getDoc(doc(db, 'daily_archives', targetDate));
     if (archiveSnap.exists()) {
@@ -6633,14 +6753,18 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
         results?: LotteryResult[];
       };
 
-      const archivedTickets = (archive.tickets || []).filter(ticket =>
-        (ticket.sellerEmail || '').toLowerCase() === normalizedEmail
-      );
-      const archivedInjections = (archive.injections || []).filter(injection =>
-        (injection.userEmail || '').toLowerCase() === normalizedEmail
-      );
+      const archivedTickets = fetchAllUsers
+        ? (archive.tickets || [])
+        : (archive.tickets || []).filter(ticket =>
+          (ticket.sellerEmail || '').toLowerCase() === normalizedEmail
+        );
+      const archivedInjections = fetchAllUsers
+        ? (archive.injections || [])
+        : (archive.injections || []).filter(injection =>
+          (injection.userEmail || '').toLowerCase() === normalizedEmail
+        );
       const archivedSettlements = (archive.settlements || []).filter(settlement =>
-        (settlement.userEmail || '').toLowerCase() === normalizedEmail &&
+        (fetchAllUsers || (settlement.userEmail || '').toLowerCase() === normalizedEmail) &&
         settlement.date === targetDate
       );
 
@@ -6653,25 +6777,47 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
     }
 
     const [ticketsByEmailSnap, injectionsSnap, settlementsSnap, resultsSnap] = await Promise.all([
-      getDocs(query(
-        collection(db, 'tickets'),
-        where('sellerEmail', '==', normalizedEmail),
-        where('timestamp', '>=', start),
-        where('timestamp', '<', end),
-        limit(1200)
-      )),
-      getDocs(query(
-        collection(db, 'injections'),
-        where('userEmail', '==', normalizedEmail),
-        where('date', '==', targetDate),
-        limit(500)
-      )),
-      getDocs(query(
-        collection(db, 'settlements'),
-        where('userEmail', '==', normalizedEmail),
-        where('date', '==', targetDate),
-        limit(300)
-      )),
+      getDocs(fetchAllUsers
+        ? query(
+          collection(db, 'tickets'),
+          where('timestamp', '>=', start),
+          where('timestamp', '<', end),
+          limit(1500)
+        )
+        : query(
+          collection(db, 'tickets'),
+          where('sellerEmail', '==', normalizedEmail),
+          where('timestamp', '>=', start),
+          where('timestamp', '<', end),
+          limit(1200)
+        )
+      ),
+      getDocs(fetchAllUsers
+        ? query(
+          collection(db, 'injections'),
+          where('date', '==', targetDate),
+          limit(1000)
+        )
+        : query(
+          collection(db, 'injections'),
+          where('userEmail', '==', normalizedEmail),
+          where('date', '==', targetDate),
+          limit(500)
+        )
+      ),
+      getDocs(fetchAllUsers
+        ? query(
+          collection(db, 'settlements'),
+          where('date', '==', targetDate),
+          limit(1000)
+        )
+        : query(
+          collection(db, 'settlements'),
+          where('userEmail', '==', normalizedEmail),
+          where('date', '==', targetDate),
+          limit(300)
+        )
+      ),
       getDocs(query(
         collection(db, 'results'),
         where('date', '==', targetDate),
@@ -6685,7 +6831,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
       settlements: settlementsSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Settlement)),
       results: resultsSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as LotteryResult))
     };
-  }, [getBusinessDayRange, mergeTicketSnapshots]);
+  }, [allLiquidationUsersValue, getBusinessDayRange, mergeTicketSnapshots]);
 
   const fetchArchiveData = useCallback(async () => {
     if (!archiveUserEmail || !archiveDate) return;
@@ -7298,6 +7444,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
           setInjectionTargetUserEmail('');
           setInjectionDefaultType('injection');
           setInjectionInitialAmount('');
+          setEditingInjection(null);
         }}
         users={users}
         currentUser={user}
@@ -7306,6 +7453,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
         defaultType={injectionDefaultType}
         initialAmount={injectionInitialAmount}
         allowOnlyInjection={isInjectionOnly}
+        editingTransaction={editingInjection}
       />
 
       {/* Sidebar Overlay for Mobile */}
@@ -7519,6 +7667,26 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                             <span className={`text-xs font-black ${inj.type === 'injection' ? 'text-yellow-400' : 'text-blue-400'}`}>
                               {inj.type === 'injection' ? '+' : '-'}${inj.amount.toFixed(2)}
                             </span>
+                            {canManageMoneyAdjustments && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => openEditInjection(inj)}
+                                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-white transition-all"
+                                  title="Editar inyección"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                                {canDeleteMoneyAdjustments && (
+                                  <button
+                                    onClick={() => deleteInjection(inj)}
+                                    className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all"
+                                    title="Borrar inyección"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         ))}
                         {injections.filter(i => i.date === todayStr && i.userEmail?.toLowerCase() === user?.email?.toLowerCase()).length === 0 && (
@@ -9145,10 +9313,53 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                             <p className="text-xl font-black text-white">{u.commissionRate}%</p>
                           </div>
                           <div className="bg-black/40 p-4 rounded-xl border border-white/5">
-                            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-1">Deuda Actual</p>
-                            <p className={`text-xl font-black ${u.currentDebt && u.currentDebt > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                              USD {(u.currentDebt || 0).toFixed(2)}
-                            </p>
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Deuda Actual</p>
+                              {canManageMoneyAdjustments && editingDebtUserEmail !== u.email && (
+                                <button
+                                  onClick={() => {
+                                    setEditingDebtUserEmail(u.email);
+                                    setEditingDebtAmount(String(u.currentDebt || 0));
+                                  }}
+                                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-white transition-all"
+                                  title="Editar deuda"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                            {editingDebtUserEmail === u.email ? (
+                              <div className="space-y-2">
+                                <input
+                                  type="number"
+                                  value={editingDebtAmount}
+                                  onChange={(e) => setEditingDebtAmount(e.target.value)}
+                                  className="w-full bg-black border border-border p-2 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                                />
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    onClick={() => saveUserDebt(u)}
+                                    disabled={isSavingDebt}
+                                    className="py-2 rounded-lg bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+                                  >
+                                    Guardar
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingDebtUserEmail('');
+                                      setEditingDebtAmount('');
+                                    }}
+                                    className="py-2 rounded-lg bg-white/5 hover:bg-white/10 text-[10px] font-black uppercase tracking-widest"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className={`text-xl font-black ${u.currentDebt && u.currentDebt > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                USD {(u.currentDebt || 0).toFixed(2)}
+                              </p>
+                            )}
                           </div>
                         </div>
 
@@ -9190,6 +9401,67 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                             </button>
                           )}
                         </div>
+
+                        {canManageMoneyAdjustments && (
+                          <div className="mt-6 bg-black/30 border border-white/5 rounded-xl p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Inyecciones del usuario</p>
+                              <button
+                                onClick={() => {
+                                  setInjectionTargetUserEmail(u.email);
+                                  setInjectionDefaultType('injection');
+                                  setInjectionInitialAmount('');
+                                  setEditingInjection(null);
+                                  setIsInjectionOnly(true);
+                                  setShowInjectionModal(true);
+                                }}
+                                className="p-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 transition-all"
+                                title="Nueva inyección"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            {injections
+                              .filter(inj => inj.userEmail?.toLowerCase() === u.email.toLowerCase() && (inj.type || 'injection') === 'injection')
+                              .sort((a, b) => {
+                                const aTime = a.timestamp?.toDate?.()?.getTime?.() ?? (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0);
+                                const bTime = b.timestamp?.toDate?.()?.getTime?.() ?? (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0);
+                                return bTime - aTime;
+                              })
+                              .slice(0, 5)
+                              .map((inj) => (
+                                <div key={inj.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-white/5 border border-white/5">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-black text-blue-300">USD {(inj.amount || 0).toFixed(2)}</p>
+                                    <p className="text-[9px] font-mono text-muted-foreground uppercase">
+                                      {inj.date || 'Sin fecha'}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => openEditInjection(inj)}
+                                      className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-white transition-all"
+                                      title="Editar inyección"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    {canDeleteMoneyAdjustments && (
+                                      <button
+                                        onClick={() => deleteInjection(inj)}
+                                        className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all"
+                                        title="Borrar inyección"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            {injections.filter(inj => inj.userEmail?.toLowerCase() === u.email.toLowerCase() && (inj.type || 'injection') === 'injection').length === 0 && (
+                              <p className="py-3 text-center text-[10px] font-bold text-muted-foreground uppercase">Sin inyecciones registradas</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })() : (
@@ -9215,9 +9487,9 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                       <h2 className="text-2xl font-black italic tracking-tighter neon-text uppercase">LIQUIDACIONES</h2>
                       <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">Cierre de caja y reporte de ventas</p>
                     </div>
-                    {isPrimaryCeoUser && (
+                    {canConfirmLiquidation && (
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-                        <div className="flex items-center gap-2">
+                        <div className="hidden">
                           <button
                             onClick={() => setConsolidatedMode('day')}
                             className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${consolidatedMode === 'day' ? 'bg-primary text-primary-foreground' : 'bg-white/5 text-muted-foreground'}`}
@@ -9240,21 +9512,21 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                               setConsolidatedStartDate(e.target.value);
                               setConsolidatedEndDate(e.target.value);
                             }}
-                            className="bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                            className="hidden"
                           />
                         ) : (
-                          <div className="flex flex-col sm:flex-row gap-2">
+                          <div className="hidden">
                             <input
                               type="date"
                               value={consolidatedStartDate}
                               onChange={(e) => setConsolidatedStartDate(e.target.value)}
-                              className="bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                              className="hidden"
                             />
                             <input
                               type="date"
                               value={consolidatedEndDate}
                               onChange={(e) => setConsolidatedEndDate(e.target.value)}
-                              className="bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                              className="hidden"
                             />
                           </div>
                         )}
@@ -9267,18 +9539,23 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                               setConsolidatedEndDate(e.target.value);
                             }
                           }}
-                          className="bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                          className="hidden"
                         >
                           {recentOperationalDates.map(dateValue => (
                             <option key={`consolidated-${dateValue}`} value={dateValue} className="bg-gray-900">{dateValue}</option>
                           ))}
                         </select>
                         <button
-                          onClick={generateConsolidatedReport}
+                          onClick={() => {
+                            setConsolidatedMode('day');
+                            setConsolidatedReportDate(liquidationDate);
+                            setConsolidatedStartDate(liquidationDate);
+                            setConsolidatedEndDate(liquidationDate);
+                            setTimeout(generateConsolidatedReport, 0);
+                          }}
                           disabled={
                             isGeneratingYesterdayReport ||
-                            (consolidatedMode === 'day' && !consolidatedReportDate) ||
-                            (consolidatedMode === 'range' && (!consolidatedStartDate || !consolidatedEndDate))
+                            !liquidationDate
                           }
                           className="bg-primary text-primary-foreground font-black uppercase tracking-widest px-4 py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                         >
@@ -9288,6 +9565,233 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                     )}
                   </div>
 
+                  {(() => {
+                    const isCurrentOperationalDate = liquidationDate === businessDayKey;
+                    const sourceTickets = isCurrentOperationalDate ? tickets : liquidationTicketsSnapshot;
+                    const sourceInjections = isCurrentOperationalDate ? injections : liquidationInjectionsSnapshot;
+                    const sourceResults = isCurrentOperationalDate ? results : liquidationResultsSnapshot;
+                    const sourceSettlements = isCurrentOperationalDate ? settlements : liquidationSettlementsSnapshot;
+                    const liquidationUsersSource = [...users];
+                    if (userProfile?.role === 'ceo' && userProfile.email && !liquidationUsersSource.some(u => u.email?.toLowerCase() === userProfile.email.toLowerCase())) {
+                      liquidationUsersSource.unshift(userProfile);
+                    }
+                    const liquidableUsers = liquidationUsersSource.filter(u => {
+                      if (!u || !u.email || !u.name || u.name.trim() === '') return false;
+                      if (canChooseLiquidationUser) return u.status === 'active' || u.role === 'ceo';
+                      return u.email?.toLowerCase() === userProfile?.email?.toLowerCase();
+                    });
+                    const formatLiquidationUserLabel = (u: UserProfile) => {
+                      const emailName = (u.email?.split('@')[0] || '').trim();
+                      const rawCode = (u.sellerId || emailName || '').trim();
+                      const rawName = (u.name || '').trim();
+                      const code = rawCode.toUpperCase();
+                      const nameLooksLikeCode = rawName.toLowerCase() === rawCode.toLowerCase();
+                      const ticketName = sourceTickets.find(ticket => {
+                        const sellerEmail = (ticket.sellerEmail || '').toLowerCase();
+                        const sellerCode = ((ticket as any).sellerCode || '').toLowerCase();
+                        const sellerId = (ticket.sellerId || '').toLowerCase();
+                        const targetEmail = (u.email || '').toLowerCase();
+                        const targetCode = rawCode.toLowerCase();
+                        return sellerEmail === targetEmail || sellerCode === targetCode || sellerId === targetCode;
+                      })?.sellerName?.trim();
+                      const displayName = (nameLooksLikeCode ? ticketName || emailName : rawName) || emailName || rawCode;
+                      return `${code || displayName.toUpperCase()} (${displayName.toUpperCase()})`;
+                    };
+                    const visibleLiquidationUsers = selectedLiquidationIsAll
+                      ? liquidableUsers
+                      : liquidableUsers.filter(u => u.email === selectedUserToLiquidate);
+                    const getUserSettlement = (email: string) => {
+                      const normalizedEmail = email.toLowerCase();
+                      return sourceSettlements
+                        .filter(settlement => (settlement.userEmail || '').toLowerCase() === normalizedEmail && settlement.date === liquidationDate)
+                        .sort((a, b) => {
+                          const aTime = a.timestamp?.toDate?.()?.getTime?.() ?? (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0);
+                          const bTime = b.timestamp?.toDate?.()?.getTime?.() ?? (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0);
+                          return bTime - aTime;
+                        })[0] || null;
+                    };
+                    const getUserSummary = (email: string) => {
+                      const summary = buildFinancialSummary({
+                        tickets: sourceTickets,
+                        injections: sourceInjections,
+                        userEmail: email,
+                        targetDate: liquidationDate,
+                        prizeResolver: (ticket: LotteryTicket) => getTicketPrizesFromSource(ticket, sourceResults)
+                      });
+                      const resultadoDia = summary.totalSales - summary.totalCommissions - summary.totalPrizes;
+                      const injectionAmount = summary.totalInjections;
+                      const balanceFinal = resultadoDia + injectionAmount;
+                      return { summary, resultadoDia, injectionAmount, balanceFinal };
+                    };
+                    const selectedUserSummary = selectedUserToLiquidate && !selectedLiquidationIsAll
+                      ? getUserSummary(selectedUserToLiquidate)
+                      : null;
+                    const globalSummary = selectedLiquidationIsAll ? buildFinancialSummary({
+                      tickets: sourceTickets,
+                      injections: sourceInjections,
+                      targetDate: liquidationDate,
+                      prizeResolver: (ticket: LotteryTicket) => getTicketPrizesFromSource(ticket, sourceResults)
+                    }) : null;
+                    const globalResultadoDia = globalSummary
+                      ? globalSummary.totalSales - globalSummary.totalCommissions - globalSummary.totalPrizes
+                      : 0;
+                    const globalInjectionAmount = globalSummary?.totalInjections || 0;
+                    const globalBalanceFinal = globalResultadoDia + globalInjectionAmount;
+                    const receivedAmount = Number(amountPaid) || 0;
+                    const selectedDifference = selectedUserSummary ? selectedUserSummary.balanceFinal - receivedAmount : 0;
+                    const historyRows = sourceSettlements
+                      .filter(settlement => selectedLiquidationIsAll || !selectedUserToLiquidate || (settlement.userEmail || '').toLowerCase() === selectedUserToLiquidate.toLowerCase())
+                      .sort((a, b) => {
+                        const dateCompare = (b.date || '').localeCompare(a.date || '');
+                        if (dateCompare !== 0) return dateCompare;
+                        const aTime = a.timestamp?.toDate?.()?.getTime?.() ?? (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0);
+                        const bTime = b.timestamp?.toDate?.()?.getTime?.() ?? (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0);
+                        return bTime - aTime;
+                      })
+                      .slice(0, 3);
+
+                    return (
+                      <div className="space-y-8">
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Fecha operativa</label>
+                            <div className="space-y-2">
+                              <input
+                                type="date"
+                                value={liquidationDate}
+                                onChange={(e) => setLiquidationDate(e.target.value)}
+                                className="w-full bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                              />
+                            </div>
+                            {liquidationDate !== businessDayKey && isLiquidationDataLoading && (
+                              <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Cargando datos...</p>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Usuario</label>
+                            {canChooseLiquidationUser ? (
+                              <select
+                                value={selectedUserToLiquidate}
+                                onChange={(e) => setSelectedUserToLiquidate(e.target.value)}
+                                className="w-full bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                              >
+                                <option value={allLiquidationUsersValue} className="bg-gray-900">Todos</option>
+                                {liquidableUsers.map((u, i) => (
+                                  <option key={u.email || `liq-${i}`} value={u.email} className="bg-gray-900">
+                                    {formatLiquidationUserLabel(u)}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="bg-white/5 border border-border p-3 rounded-xl text-sm font-bold text-white">
+                                {userProfile?.name || user?.email}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {selectedLiquidationIsAll && globalSummary ? (
+                          <div className="border border-white/10 bg-black/30 rounded-xl p-5 space-y-5">
+                            <div className="border-b border-white/10 pb-4">
+                              <h3 className="text-lg font-black text-white">NEGOCIO - RESUMEN GLOBAL</h3>
+                              <p className="mt-1 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Vista global informativa. Seleccione un usuario para liquidar.</p>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between border-b border-white/5 pb-2"><span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Ventas</span><span className="text-sm font-black text-white">USD {globalSummary.totalSales.toFixed(2)}</span></div>
+                              <div className="flex items-center justify-between border-b border-white/5 pb-2"><span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Comision</span><span className="text-sm font-black text-amber-400">USD {globalSummary.totalCommissions.toFixed(2)}</span></div>
+                              <div className="flex items-center justify-between border-b border-white/5 pb-2"><span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Premios</span><span className="text-sm font-black text-red-400">USD {globalSummary.totalPrizes.toFixed(2)}</span></div>
+                              <div className="flex items-center justify-between border-b border-white/5 pb-2"><span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Resultado</span><span className={`text-base font-black ${signedAmountClass(globalResultadoDia)}`}>{signedCurrency(globalResultadoDia)}</span></div>
+                              <div className="flex items-center justify-between border-b border-white/5 pb-2"><span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Inyeccion total</span><span className="text-base font-black text-blue-400">USD {globalInjectionAmount.toFixed(2)}</span></div>
+                              <div className="flex items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-xl p-3"><span className="shrink-0 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Balance final</span><span className={`min-w-0 text-right whitespace-nowrap text-lg sm:text-2xl font-black ${signedAmountClass(globalBalanceFinal)}`}>{signedCurrency(globalBalanceFinal)}</span></div>
+                            </div>
+                          </div>
+                        ) : visibleLiquidationUsers.length > 0 ? (
+                          <div className="space-y-4">
+                            {visibleLiquidationUsers.map(liqUser => {
+                              const userSummary = getUserSummary(liqUser.email);
+                              const userSettlement = getUserSettlement(liqUser.email);
+                              return (
+                                <div key={liqUser.email} className="border border-white/10 bg-black/30 rounded-xl p-5 space-y-5">
+                                  <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+                                    <div>
+                                      <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Usuario</p>
+                                      <h3 className="text-lg font-black text-white">{liqUser.name}</h3>
+                                    </div>
+                                    <p className="text-xs font-mono text-muted-foreground">{liqUser.sellerId || liqUser.email?.split('@')[0]}</p>
+                                  </div>
+                                  <div className="space-y-3">
+                                    <div><p className="text-[9px] uppercase tracking-widest text-muted-foreground">Ventas</p><p className="text-sm font-black text-white">USD {userSummary.summary.totalSales.toFixed(2)}</p></div>
+                                    <div><p className="text-[9px] uppercase tracking-widest text-muted-foreground">Comision</p><p className="text-sm font-black text-amber-400">USD {userSummary.summary.totalCommissions.toFixed(2)}</p></div>
+                                    <div><p className="text-[9px] uppercase tracking-widest text-muted-foreground">Premios</p><p className="text-sm font-black text-red-400">USD {userSummary.summary.totalPrizes.toFixed(2)}</p></div>
+                                  </div>
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between border-b border-white/5 pb-2"><span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Resultado</span><span className={`text-base font-black ${signedAmountClass(userSummary.resultadoDia)}`}>{signedCurrency(userSummary.resultadoDia)}</span></div>
+                                    <div className="flex items-center justify-between border-b border-white/5 pb-2"><span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Inyeccion</span><span className="text-base font-black text-blue-400">USD {userSummary.injectionAmount.toFixed(2)}</span></div>
+                                    <div className="flex items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-xl p-3"><span className="shrink-0 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Balance final</span><span className={`min-w-0 text-right whitespace-nowrap text-lg sm:text-2xl font-black ${signedAmountClass(userSummary.balanceFinal)}`}>{signedCurrency(userSummary.balanceFinal)}</span></div>
+                                  </div>
+                                  {userSettlement && (
+                                    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-emerald-300">
+                                      Liquidacion registrada: USD {(userSettlement.amountPaid || 0).toFixed(2)}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+
+                        {selectedUserSummary && canConfirmLiquidation && !selectedLiquidationIsAll && (
+                          <div className="border border-primary/25 bg-primary/5 rounded-xl p-5 space-y-5">
+                            <h3 className="text-sm font-black uppercase tracking-widest text-primary">Liquidar</h3>
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 p-3"><p className="shrink-0 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Balance final</p><p className={`min-w-0 text-right whitespace-nowrap text-lg sm:text-2xl font-black ${signedAmountClass(selectedUserSummary.balanceFinal)}`}>{signedCurrency(selectedUserSummary.balanceFinal)}</p></div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Monto recibido</label>
+                                <input type="number" value={amountPaid === 'NaN' ? '' : amountPaid} onChange={(e) => setAmountPaid(e.target.value)} placeholder="0.00" className="w-full bg-black border border-border p-3 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all" />
+                              </div>
+                              <div><p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">Diferencia</p><p className={`text-2xl font-black ${signedAmountClass(selectedDifference)}`}>{signedCurrency(selectedDifference)}</p></div>
+                            </div>
+                            <button onClick={handleLiquidate} className="w-full bg-primary text-primary-foreground font-black uppercase tracking-widest py-4 rounded-xl hover:brightness-110 transition-all shadow-lg shadow-primary/20">Confirmar liquidacion</button>
+                          </div>
+                        )}
+
+                        {!selectedLiquidationIsAll && selectedUserToLiquidate && (
+                        <div className="space-y-3">
+                          <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Historial</h3>
+                          <div className="space-y-3">
+                            {historyRows.length > 0 ? historyRows.map((settlement, index) => {
+                              const settlementUser = users.find(u => (u.email || '').toLowerCase() === (settlement.userEmail || '').toLowerCase());
+                              const rowResultado = settlement.resultadoDia ?? settlement.netProfit ?? ((settlement.totalSales || 0) - (settlement.totalCommissions || 0) - (settlement.totalPrizes || 0));
+                              const rowInjection = settlement.injectionAmount ?? settlement.totalInjections ?? 0;
+                              const rowBalance = settlement.balanceFinal ?? (rowResultado + rowInjection);
+                              const rowDifference = settlement.difference ?? settlement.debtAdded ?? (rowBalance - (settlement.amountPaid || 0));
+                              return (
+                                <div key={settlement.id || `${settlement.userEmail}-${settlement.date}-${index}`} className="rounded-xl border border-white/10 bg-black/30 p-4 space-y-3">
+                                  <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
+                                    <p className="text-xs font-mono text-muted-foreground">{settlement.date}</p>
+                                    <p className="text-xs font-black text-white text-right">{settlementUser?.name || settlement.userEmail}</p>
+                                  </div>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Resultado:</span><span className={`font-black ${signedAmountClass(rowResultado)}`}>{signedCurrency(rowResultado)}</span></div>
+                                    <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Inyeccion:</span><span className="font-black text-blue-400">USD {rowInjection.toFixed(2)}</span></div>
+                                    <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Balance final:</span><span className={`font-black ${signedAmountClass(rowBalance)}`}>{signedCurrency(rowBalance)}</span></div>
+                                    <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Recibido:</span><span className="font-black text-white">USD {(settlement.amountPaid || 0).toFixed(2)}</span></div>
+                                    <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Diferencia:</span><span className={`font-black ${signedAmountClass(rowDifference)}`}>{signedCurrency(rowDifference)}</span></div>
+                                  </div>
+                                </div>
+                              );
+                            }) : (
+                              <div className="rounded-xl border border-white/10 bg-black/30 p-6 text-center text-xs font-mono uppercase tracking-widest text-muted-foreground">Sin liquidaciones registradas</div>
+                            )}
+                          </div>
+                        </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {false && (
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-1 space-y-6">
                       <div className="space-y-2">
@@ -9518,6 +10022,7 @@ Nueva Deuda Total: USD ${newTotalDebt.toFixed(2)}`,
                       )}
                     </div>
                   </div>
+                  )}
                 </div>
               </motion.div>
             )}
