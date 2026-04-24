@@ -6016,8 +6016,8 @@ Diferencia: ${signedCurrency(difference)}`,
     });
   };
   const generateConsolidatedReport = async () => {
-    if (!isPrimaryCeoUser) {
-      toast.error('Solo el CEO propietario puede generar este reporte');
+    if (!canConfirmLiquidation) {
+      toast.error('No tiene permisos para generar este reporte');
       return;
     }
 
