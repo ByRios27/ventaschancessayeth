@@ -9583,19 +9583,9 @@ Diferencia: ${signedCurrency(difference)}`,
                     const formatLiquidationUserLabel = (u: UserProfile) => {
                       const emailName = (u.email?.split('@')[0] || '').trim();
                       const rawCode = (u.sellerId || emailName || '').trim();
-                      const rawName = (u.name || '').trim();
                       const code = rawCode.toUpperCase();
-                      const nameLooksLikeCode = rawName.toLowerCase() === rawCode.toLowerCase();
-                      const ticketName = sourceTickets.find(ticket => {
-                        const sellerEmail = (ticket.sellerEmail || '').toLowerCase();
-                        const sellerCode = ((ticket as any).sellerCode || '').toLowerCase();
-                        const sellerId = (ticket.sellerId || '').toLowerCase();
-                        const targetEmail = (u.email || '').toLowerCase();
-                        const targetCode = rawCode.toLowerCase();
-                        return sellerEmail === targetEmail || sellerCode === targetCode || sellerId === targetCode;
-                      })?.sellerName?.trim();
-                      const displayName = (nameLooksLikeCode ? ticketName || emailName : rawName) || emailName || rawCode;
-                      return `${code || displayName.toUpperCase()} (${displayName.toUpperCase()})`;
+                      const username = (emailName || rawCode).toUpperCase();
+                      return `${code || username} - ${username}`;
                     };
                     const visibleLiquidationUsers = selectedLiquidationIsAll
                       ? liquidableUsers
