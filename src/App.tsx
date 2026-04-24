@@ -2086,6 +2086,19 @@ const getEndOfBusinessDay = (date = new Date()) => {
   return end;
 };
 
+const cleanTextForExport = (text: unknown) => {
+  if (text === undefined || text === null) return '';
+
+  return String(text)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
+    .replace(/[^\p{L}\p{N}\s\-.,:/()]/gu, '')
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 const TransactionModal = ({ show, onClose, users, currentUser, userProfile, targetUserEmail, defaultType = 'injection', initialAmount = '', allowOnlyInjection = false, editingTransaction = null }: { show: boolean, onClose: () => void, users: UserProfile[], currentUser: any, userProfile: UserProfile | null, targetUserEmail?: string, defaultType?: 'injection' | 'payment' | 'debt', initialAmount?: string, allowOnlyInjection?: boolean, editingTransaction?: Injection | null }) => {
   const [targetEmail, setTargetEmail] = useState('');
   const [amount, setAmount] = useState('');
@@ -6242,7 +6255,7 @@ Diferencia: ${signedCurrency(difference)}`,
           userData.summary.totalInjections > 0 ||
           userData.summary.totalLiquidations > 0
         ))
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) => cleanTextForExport(a.name).localeCompare(cleanTextForExport(b.name)));
 
       const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
       const marginX = 12;
@@ -6261,7 +6274,8 @@ Diferencia: ${signedCurrency(difference)}`,
       const writeLine = (text: string, font: 'normal' | 'bold' = 'normal', size = 9) => {
         pdf.setFont('helvetica', font);
         pdf.setFontSize(size);
-        const lines = pdf.splitTextToSize(text, maxWidth) as string[];
+        const safeText = cleanTextForExport(text);
+        const lines = pdf.splitTextToSize(safeText || ' ', maxWidth) as string[];
         lines.forEach(line => {
           ensureSpace(1);
           pdf.text(line, marginX, y);
@@ -6318,11 +6332,12 @@ Diferencia: ${signedCurrency(difference)}`,
               : '-';
             const statusLabel = ticket.status === 'winner' ? 'GANADOR' : (ticket.status || 'active').toUpperCase();
             const isWinner = ticket.status === 'winner';
-            writeLine(
-              `${index + 1}. Ticket ${ticket.id?.slice(0, 8) || '-'} | Fecha: ${ticketDate} | Estado: ${statusLabel}${isWinner ? ' *' : ''}`
-            );
+            writeLine(`${index + 1}. Ticket ${ticket.id?.slice(0, 8) || '-'} | Fecha: ${ticketDate} | Estado: ${statusLabel}${isWinner ? ' *' : ''}`);
+            if (ticket.customerName) {
+              writeLine(`   Cliente: ${ticket.customerName}`);
+            }
             const betsSummary = (ticket.bets || [])
-              .map((bet) => `${bet.number}-${bet.lottery} x${bet.amount}`)
+              .map((bet) => `${bet.number}-${cleanTextForExport(bet.lottery)} x${bet.amount}`)
               .join(' | ');
             if (betsSummary) {
               writeLine(`   Jugadas: ${betsSummary}`);
@@ -6333,7 +6348,7 @@ Diferencia: ${signedCurrency(difference)}`,
         separator();
       });
 
-      pdf.save(`Reporte-Consolidado-${reportStartDate}-a-${reportEndDate}.pdf`);
+      pdf.save(`${cleanTextForExport(`Reporte-Consolidado-${reportStartDate}-a-${reportEndDate}`)}.pdf`);
       toast.success(`Reporte consolidado listo (${reportStartDate} -> ${reportEndDate})`, { id: toastId });
     } catch (error) {
       console.error('Error generating consolidated report:', error);
