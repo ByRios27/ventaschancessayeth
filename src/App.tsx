@@ -6470,6 +6470,63 @@ Diferencia: ${signedCurrency(difference)}`,
     return shared;
   };
 
+  const shareElementAsImage = async ({
+    elementId,
+    fileName,
+    title,
+    text,
+    dialogTitle,
+    backgroundColor = '#0f172a'
+  }: {
+    elementId: string;
+    fileName: string;
+    title: string;
+    text: string;
+    dialogTitle: string;
+    backgroundColor?: string;
+  }) => {
+    const reportEl = document.getElementById(elementId);
+    if (!reportEl) {
+      toast.error('No se encontro el reporte para compartir');
+      return;
+    }
+
+    const toastId = toast.loading('Generando reporte...');
+
+    try {
+      await document.fonts.ready;
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      const lib = await import('html-to-image');
+      const dataUrl = await lib.toPng(reportEl, {
+        backgroundColor,
+        pixelRatio: 2,
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left'
+        }
+      });
+
+      const shared = await shareImageDataUrl({
+        dataUrl,
+        fileName,
+        title,
+        text,
+        dialogTitle
+      });
+
+      if (shared) {
+        toast.success('Reporte compartido', { id: toastId });
+      } else {
+        downloadDataUrlFile(dataUrl, fileName);
+        toast.info('Tu dispositivo no permite compartir imagenes adjuntas. Se descargo para envio manual.', { id: toastId });
+      }
+    } catch (error) {
+      console.error('Error generating report:', error);
+      toast.error('Error al generar el reporte', { id: toastId });
+    }
+  };
+
   const handleDownloadCierre = async () => {
     if (!cierreRef.current || !cierreLottery) return;
     const toastId = toast.loading('Generando imagen...');
@@ -9716,8 +9773,9 @@ Diferencia: ${signedCurrency(difference)}`,
                             {visibleLiquidationUsers.map(liqUser => {
                               const userSummary = getUserSummary(liqUser.email);
                               const userSettlement = getUserSettlement(liqUser.email);
+                              const liquidationCardId = `liquidation-summary-${(liqUser.email || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
                               return (
-                                <div key={liqUser.email} className="border border-white/10 bg-black/30 rounded-xl p-5 space-y-5">
+                                <div id={liquidationCardId} key={liqUser.email} className="border border-white/10 bg-black/30 rounded-xl p-5 space-y-5">
                                   <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
                                     <div>
                                       <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Usuario</p>
@@ -9739,6 +9797,20 @@ Diferencia: ${signedCurrency(difference)}`,
                                     <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-emerald-300">
                                       Liquidacion registrada: USD {(userSettlement.amountPaid || 0).toFixed(2)}
                                     </div>
+                                  )}
+                                  {!selectedLiquidationIsAll && (
+                                    <button
+                                      onClick={() => shareElementAsImage({
+                                        elementId: liquidationCardId,
+                                        fileName: `Liquidacion-${cleanText(liqUser.name || liqUser.email || 'Usuario')}-${liquidationDate}.png`,
+                                        title: 'Reporte de Liquidacion',
+                                        text: `Liquidacion de ${liqUser.name || liqUser.email || 'Usuario'} para la fecha ${liquidationDate}`,
+                                        dialogTitle: 'Compartir Liquidacion'
+                                      })}
+                                      className="w-full bg-white/10 hover:bg-white/20 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 no-print"
+                                    >
+                                      <Share2 className="w-4 h-4" /> Compartir
+                                    </button>
                                   )}
                                 </div>
                               );
